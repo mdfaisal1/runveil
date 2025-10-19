@@ -19,63 +19,6 @@ By combining Go, Rust, and TypeScript across a distributed microservice architec
 
 ## 🚀 Core Architecture
 
-### 🧩 Modular Design
-Keystone follows a composable architecture inspired by event-driven, runtime-aware design principles.
-
-```mermaid
-%%{init: {'theme': 'dark', 'themeVariables': { 'fontSize': '14px', 'primaryColor': '#00bcd4', 'edgeLabelBackground':'#1e1e1e'}}}%%
-flowchart LR
-    subgraph Clients
-      CLI["CLI (Go + Cobra)
-Scans lockfiles"]
-      Dashboard["Dashboard (Next.js)
-Visual analytics"]
-      Agent["Runtime Agent (Rust / eBPF)
-Runtime deps"]
-    end
-
-    subgraph API["API Service
-Gin/Fiber + REST"]
-      CLI -->|"POST /scans"| API
-      Dashboard -->|"GET /data"| API
-      Agent -->|"Telemetry"| API
-    end
-
-    API -->|"publish scan.request"| NATS
-
-    subgraph Core_Services["Core Services"]
-      Orchestrator["Orchestrator
-Event router + Jobs"]
-      Correlation["Correlation Service
-Neo4j graph builder"]
-      Policy["Policy Service
-OPA/Rego evaluator"]
-      Remediation["Remediation Service
-Auto PRs & patches"]
-      Orchestrator -->|trigger| Correlation
-      Orchestrator -->|trigger| Policy
-      Orchestrator -->|trigger| Remediation
-    end
-
-    subgraph Messaging
-      NATS["NATS JetStream"]
-    end
-
-    subgraph Data
-      Neo4j["Neo4j
-Dependency graph"]
-      Postgres["PostgreSQL
-Scans & findings"]
-    end
-
-    NATS --> Orchestrator
-    Correlation --> Neo4j
-    Policy --> Postgres
-    Remediation --> Postgres
-```
-
----
-
 ## 🧠 Technologies Involved
 
 | Layer | Technology | Purpose |

@@ -1,10 +1,7 @@
-/*
-Copyright © 2025 NAME HERE <EMAIL ADDRESS>
-
-*/
+// cli/main.go
 package main
 
-import "github.com/mdfaisal1/keystone/cli/cmd"
+import "keystone/cli/cmd"
 
 func main() {
 	cmd.Execute()

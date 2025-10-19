@@ -1,0 +1,89 @@
+name: ${COMPOSE_PROJECT_NAME:-keystone}
+
+networks:
+  default:
+    name: ${NETWORK_NAME:-keystone-net}
+    driver: bridge
+
+volumes:
+  pg_data:
+  neo4j_data:
+  neo4j_logs:
+  neo4j_conf:
+  neo4j_plugins:
+  nats_data:
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-keystone}-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h 127.0.0.1 -p 5432"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 5s
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    labels:
+      keystone.role: "postgres"
+
+  neo4j:
+    image: neo4j:5.23-community
+    container_name: ${COMPOSE_PROJECT_NAME:-keystone}-neo4j
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: ${NEO4J_USERNAME}/${NEO4J_PASSWORD}
+      NEO4J_server_http_listen__address: 0.0.0.0:7474
+      NEO4J_server_bolt_listen__address: 0.0.0.0:7687
+      # uncomment later if you add APOC/etc.
+      # NEO4J_PLUGINS: '["apoc"]'
+    ports:
+      - "${NEO4J_HTTP_PORT:-7474}:7474"
+      - "${NEO4J_BOLT_PORT:-7687}:7687"
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+      - neo4j_conf:/var/lib/neo4j/conf
+      - neo4j_plugins:/var/lib/neo4j/plugins
+      - ./neo4j/plugins:/plugins:ro
+    healthcheck:
+      # Neo4j exposes an HTTP server on 7474; a quick GET is enough for health
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7474 > /dev/null || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+    labels:
+      keystone.role: "graph"
+
+  nats:
+    image: nats:2.10-alpine
+    container_name: ${COMPOSE_PROJECT_NAME:-keystone}-nats
+    restart: unless-stopped
+    command: >
+      -js
+      -sd /data
+      -m ${NATS_MONITORING_PORT:-8222}
+    ports:
+      - "${NATS_PORT:-4222}:4222"          # client connections
+      - "${NATS_MONITORING_PORT:-8222}:8222" # HTTP monitoring
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      # Check the monitoring endpoint
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8222/varz | grep -q server_id"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 5s
+    labels:
+      keystone.role: "messaging"

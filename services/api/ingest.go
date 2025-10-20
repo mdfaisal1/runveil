@@ -4,7 +4,9 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"time"
 
@@ -43,18 +45,36 @@ type IngestResponse struct {
 	Findings        int    `json:"findings"`
 }
 
+// Used to detect an alternate payload shape: { "report": <json> }
+type rawReportEnvelope struct {
+	Report json.RawMessage `json:"report"`
+}
+
 // ---------- router hookup ----------
 
 func registerIngest(r *gin.Engine, db *sql.DB) {
 	r.POST("/v1/projects/:slug/scans/ingest", func(c *gin.Context) {
 		slug := c.Param("slug")
-		var req IngestRequest
-		if err := c.ShouldBindJSON(&req); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+
+		// Read the raw body once so we can:
+		// 1) Bind into IngestRequest (structured path)
+		// 2) Optionally extract { "report": ... } (raw report path)
+		body, err := io.ReadAll(c.Request.Body)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read request body"})
 			return
 		}
+
+		// Parse structured shape (best-effort; we don't fail if empty)
+		var req IngestRequest
+		_ = json.Unmarshal(body, &req)
+
+		// Detect optional raw report field
+		var env rawReportEnvelope
+		_ = json.Unmarshal(body, &env)
+
 		ctx := c.Request.Context()
-		resp, err := ingest(ctx, db, slug, &req)
+		resp, err := ingest(ctx, db, slug, &req, env.Report)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
@@ -65,7 +85,7 @@ func registerIngest(r *gin.Engine, db *sql.DB) {
 
 // ---------- core ingest transaction ----------
 
-func ingest(ctx context.Context, db *sql.DB, slug string, req *IngestRequest) (*IngestResponse, error) {
+func ingest(ctx context.Context, db *sql.DB, slug string, req *IngestRequest, rawReport json.RawMessage) (*IngestResponse, error) {
 	if slug == "" {
 		return nil, errors.New("missing project slug")
 	}
@@ -88,21 +108,56 @@ func ingest(ctx context.Context, db *sql.DB, slug string, req *IngestRequest) (*
 		return nil, err
 	}
 
-	// 2) create scan row (mark succeeded for now; later you can stream updates)
+	// 2) Decide what to store in scans.report_json
+	// Prefer the raw "report" if present (e.g., from the CLI step we added).
+	// Otherwise, synthesize a minimal envelope from the structured request.
+	reportJSON := rawReport
+	if len(reportJSON) == 0 {
+		type synth struct {
+			ProjectSlug string      `json:"project_slug"`
+			Source      string      `json:"source,omitempty"`
+			Lockfile    string      `json:"lockfile_path,omitempty"`
+			Packages    []IngestPkg `json:"packages"`
+			GeneratedAt string      `json:"generated_at"`
+			Totals      struct {
+				Packages int `json:"packages"`
+				Findings int `json:"findings"`
+			} `json:"totals"`
+		}
+		s := synth{
+			ProjectSlug: slug,
+			Source:      req.Source,
+			Lockfile:    req.LockfilePath,
+			Packages:    req.Packages,
+			GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+		}
+		pkgs, fnds := 0, 0
+		for _, p := range req.Packages {
+			pkgs++
+			fnds += len(p.Vulns)
+		}
+		s.Totals.Packages = pkgs
+		s.Totals.Findings = fnds
+
+		b, _ := json.Marshal(s)
+		reportJSON = b
+	}
+
+	// 3) create scan row (store the JSON in report_json; keep your existing fields)
 	var scanID string
 	if err := tx.QueryRowContext(ctx, `
-		INSERT INTO scans (project_id, status, source, lockfile_path, started_at, finished_at)
-		VALUES ($1, 'succeeded', $2, $3, now(), now())
+		INSERT INTO scans (project_id, status, source, lockfile_path, report_json, started_at, finished_at)
+		VALUES ($1, 'succeeded', $2, $3, $4::jsonb, now(), now())
 		RETURNING id
-	`, projectID, req.Source, req.LockfilePath).Scan(&scanID); err != nil {
+	`, projectID, req.Source, req.LockfilePath, reportJSON).Scan(&scanID); err != nil {
 		return nil, err
 	}
 
+	// 4) insert packages + (upsert) vulnerabilities + findings (same as before)
 	pkgs := 0
 	vulnUpserts := 0
 	findings := 0
 
-	// 3) insert packages + (upsert) vulnerabilities + findings
 	for _, p := range req.Packages {
 		var pkgID string
 		if err := tx.QueryRowContext(ctx, `

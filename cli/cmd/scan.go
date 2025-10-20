@@ -1,33 +1,74 @@
 package cmd
 
 import (
-	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
+
+	"keystone/pkg/infra"
 )
 
-type osvQuery struct {
-	Package struct {
-		Ecosystem string `json:"ecosystem"`
-		Name      string `json:"name"`
-	} `json:"package"`
-	Version string `json:"version"`
+/********** report model **********/
+
+type severity string
+
+const (
+	severityNone     severity = "none"
+	severityLow      severity = "low"
+	severityMedium   severity = "medium"
+	severityHigh     severity = "high"
+	severityCritical severity = "critical"
+)
+
+func sevRank(s severity) int {
+	switch s {
+	case severityLow:
+		return 1
+	case severityMedium:
+		return 2
+	case severityHigh:
+		return 3
+	case severityCritical:
+		return 4
+	default:
+		return 0
+	}
 }
 
-type osvResp struct {
-	Vulns []struct {
-		ID      string `json:"id"`
-		Summary string `json:"summary"`
-		// (fields trimmed; we only print ID & summary for now)
-	} `json:"vulns"`
+type finding struct {
+	Package   string   `json:"package"`
+	Version   string   `json:"version"`
+	Ecosystem string   `json:"ecosystem"`
+	VulnID    string   `json:"vuln_id"`
+	Summary   string   `json:"summary"`
+	Severity  severity `json:"severity"`
 }
+
+type report struct {
+	ProjectSlug string    `json:"project_slug"`
+	Total       int       `json:"total"`
+	Findings    []finding `json:"findings"`
+	MaxSeverity severity  `json:"max_severity"`
+	GeneratedAt string    `json:"generated_at"`
+}
+
+/********** flags **********/
+
+var (
+	flagPost    bool
+	flagProject string
+	flagFormat  string // json|md
+	flagOutPath string // file path for report
+	flagFailOn  string // none|low|medium|high|critical
+)
+
+/********** command **********/
 
 var scanCmd = &cobra.Command{
 	Use:   "scan [path-to-package-lock.json]",
@@ -35,6 +76,18 @@ var scanCmd = &cobra.Command{
 	Long:  "Parses package-lock.json (v2/v3 style), queries the OSV API per dependency, and prints only vulnerable packages.",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		// validate format
+		if flagFormat != "json" && flagFormat != "md" {
+			fmt.Println("❌ --format must be 'json' or 'md'")
+			os.Exit(1)
+		}
+		// validate fail-on
+		threshold, err := parseFailOn(flagFailOn)
+		if err != nil {
+			fmt.Println("❌", err)
+			os.Exit(1)
+		}
+
 		lockfilePath := filepath.Clean(args[0])
 
 		data, err := os.ReadFile(lockfilePath)
@@ -58,68 +111,136 @@ var scanCmd = &cobra.Command{
 
 		fmt.Printf("🔎 Scanning %d packages from: %s\n", len(deps), lockfilePath)
 
+		ctx := cmd.Context()
+		osvClient := infra.NewOSV()
+
 		vulnCount := 0
+		findings := make([]finding, 0, 64)
+		maxSeen := severityNone
+
 		for _, d := range deps {
-			// Skip the root "" entry and empty versions.
 			if d.name == "" || d.version == "" {
 				continue
 			}
-
-			// Build OSV query
-			var q osvQuery
-			q.Package.Ecosystem = "npm"
-			q.Package.Name = d.name
-			q.Version = d.version
-
-			payload, _ := json.Marshal(q)
-			resp, err := http.Post("https://api.osv.dev/v1/query", "application/json", bytes.NewBuffer(payload))
+			res, err := osvClient.Query(ctx, "npm", d.name, d.version)
 			if err != nil {
 				fmt.Printf("  ❌ %s@%s → OSV query failed: %v\n", d.name, d.version, err)
 				continue
 			}
-			body, _ := io.ReadAll(resp.Body)
-			_ = resp.Body.Close()
-
-			var or osvResp
-			if err := json.Unmarshal(body, &or); err != nil {
-				fmt.Printf("  ❌ %s@%s → bad OSV response: %v\n", d.name, d.version, err)
+			if len(res.Vulns) == 0 {
 				continue
 			}
 
-			if len(or.Vulns) > 0 {
-				vulnCount += len(or.Vulns)
-				fmt.Printf("  🚨 %s@%s — %d vuln(s)\n", d.name, d.version, len(or.Vulns))
-				for _, v := range or.Vulns {
-					// Print ID + short summary (trim to one line)
-					s := strings.Split(strings.TrimSpace(v.Summary), "\n")[0]
-					if len(s) > 110 {
-						s = s[:110] + "…"
-					}
-					fmt.Printf("     • %s — %s\n", v.ID, s)
+			vulnCount += len(res.Vulns)
+			fmt.Printf("  🚨 %s@%s — %d vuln(s)\n", d.name, d.version, len(res.Vulns))
+			for _, v := range res.Vulns {
+				s := strings.Split(strings.TrimSpace(v.Summary), "\n")[0]
+				if len(s) > 110 {
+					s = s[:110] + "…"
 				}
+				sev := mapCVSS(v.Severity)
+				if sevRank(sev) > sevRank(maxSeen) {
+					maxSeen = sev
+				}
+				fmt.Printf("     • %s — %s\n", v.ID, s)
+
+				findings = append(findings, finding{
+					Package:   d.name,
+					Version:   d.version,
+					Ecosystem: "npm",
+					VulnID:    v.ID,
+					Summary:   s,
+					Severity:  sev,
+				})
 			}
 		}
 
 		if vulnCount == 0 {
 			fmt.Println("✅ No known vulnerabilities found for the packages in this lockfile (per OSV).")
 		}
+
+		// Build report
+		rep := report{
+			ProjectSlug: flagProject,
+			Total:       len(findings),
+			Findings:    findings,
+			MaxSeverity: maxSeen,
+			GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+		}
+
+		// Always produce JSON (for --post) + optionally a formatted view
+		reportJSON, _ := json.MarshalIndent(rep, "", "  ")
+		var outBytes []byte
+		switch flagFormat {
+		case "json":
+			outBytes = reportJSON
+		case "md":
+			outBytes = renderMarkdown(rep)
+		}
+
+		// Write to file or stdout
+		if flagOutPath != "" {
+			if err := os.MkdirAll(filepath.Dir(flagOutPath), 0o755); err != nil {
+				fmt.Println("❌ create dir:", err)
+				os.Exit(1)
+			}
+			if err := os.WriteFile(flagOutPath, outBytes, 0o644); err != nil {
+				fmt.Println("❌ write report:", err)
+				os.Exit(1)
+			}
+			fmt.Printf("📝 Report written to %s (%s)\n", flagOutPath, flagFormat)
+		} else {
+			os.Stdout.Write(outBytes)
+			if flagFormat == "md" {
+				fmt.Println()
+			}
+		}
+
+		// If --post is set, send JSON to API
+		if flagPost {
+			if flagProject == "" {
+				fmt.Println("❌ --project is required when using --post")
+				os.Exit(1)
+			}
+			ctx, cancel := context.WithTimeout(cmd.Context(), 20*time.Second)
+			defer cancel()
+			if err := infra.PostScan(ctx, flagProject, reportJSON); err != nil {
+				fmt.Printf("❌ post failed: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Println("📤 Posted scan to Keystone API.")
+		}
+
+		// CI/CD gating
+		if shouldFail(maxSeen, threshold) {
+			fmt.Printf("⛔ Policy fail: max severity %s ≥ --fail-on %s\n", strings.ToUpper(string(maxSeen)), strings.ToUpper(string(threshold)))
+			os.Exit(3) // dedicated exit code for policy violation
+		}
 	},
 }
 
 func init() {
 	rootCmd.AddCommand(scanCmd)
+
+	// Existing flags
+	scanCmd.Flags().BoolVar(&flagPost, "post", false, "Send the generated report to Keystone API")
+	scanCmd.Flags().StringVar(&flagProject, "project", "", "Project slug (required with --post)")
+
+	// Formatting
+	scanCmd.Flags().StringVar(&flagFormat, "format", "json", "Report format: json|md")
+	scanCmd.Flags().StringVar(&flagOutPath, "out", "", "Write report to this file (otherwise stdout)")
+
+	// CI gating
+	scanCmd.Flags().StringVar(&flagFailOn, "fail-on", "none", "Fail build if max severity meets/exceeds this level: none|low|medium|high|critical")
 }
 
-/********** helpers **********/
+/********** helpers already used **********/
 
 type dep struct {
 	name    string
 	version string
 }
 
-// extractNpmPackages finds packages in lockfile v2/v3: lock["packages"] is a map
-// where keys are "", "node_modules/lodash", etc. We take the name from the key
-// (strip "node_modules/") and version from the value's "version".
 func extractNpmPackages(lock map[string]any) []dep {
 	packagesAny, ok := lock["packages"]
 	if !ok {
@@ -158,4 +279,86 @@ func extractNpmPackages(lock map[string]any) []dep {
 		out = append(out, dep{name: name, version: ver})
 	}
 	return out
+}
+
+func renderMarkdown(rep report) []byte {
+	var b strings.Builder
+	fmt.Fprintf(&b, "# Keystone Scan Report — %s\n\n", safe(rep.ProjectSlug, "N/A"))
+	fmt.Fprintf(&b, "**Findings:** %d  •  **Max Severity:** %s  •  **Generated:** %s UTC\n\n",
+		rep.Total, strings.ToUpper(string(rep.MaxSeverity)), rep.GeneratedAt)
+	if rep.Total == 0 {
+		b.WriteString("_No vulnerabilities found._\n")
+		return []byte(b.String())
+	}
+	b.WriteString("| Severity | Package | Version | Ecosystem | Vuln ID | Summary |\n")
+	b.WriteString("|---|---|---|---|---|---|\n")
+	for _, f := range rep.Findings {
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s |\n",
+			strings.ToUpper(string(f.Severity)),
+			escapeMD(f.Package), escapeMD(f.Version), escapeMD(f.Ecosystem), escapeMD(f.VulnID), escapeMD(f.Summary))
+	}
+	return []byte(b.String())
+}
+
+func safe(s, def string) string {
+	if strings.TrimSpace(s) == "" {
+		return def
+	}
+	return s
+}
+
+func escapeMD(s string) string {
+	s = strings.ReplaceAll(s, "|", "\\|")
+	s = strings.ReplaceAll(s, "\n", " ")
+	return s
+}
+
+func parseFailOn(s string) (severity, error) {
+	switch strings.ToLower(strings.TrimSpace(s)) {
+	case "none":
+		return severityNone, nil
+	case "low":
+		return severityLow, nil
+	case "medium":
+		return severityMedium, nil
+	case "high":
+		return severityHigh, nil
+	case "critical":
+		return severityCritical, nil
+	default:
+		return severityNone, fmt.Errorf("invalid --fail-on value: %q (use none|low|medium|high|critical)", s)
+	}
+}
+
+func shouldFail(maxSeen, threshold severity) bool {
+	if threshold == severityNone {
+		return false
+	}
+	return sevRank(maxSeen) >= sevRank(threshold)
+}
+
+func mapCVSS(sevs []struct {
+	Type  string `json:"type"`
+	Score string `json:"score"`
+}) severity {
+	max := 0.0
+	for _, s := range sevs {
+		var v float64
+		fmt.Sscanf(s.Score, "%f", &v)
+		if v > max {
+			max = v
+		}
+	}
+	switch {
+	case max >= 9.0:
+		return severityCritical
+	case max >= 7.0:
+		return severityHigh
+	case max >= 4.0:
+		return severityMedium
+	case max > 0:
+		return severityLow
+	default:
+		return severityLow
+	}
 }

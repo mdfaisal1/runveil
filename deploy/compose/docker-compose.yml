@@ -1,8 +1,8 @@
-name: ${COMPOSE_PROJECT_NAME:-keystone}
+name: ${COMPOSE_PROJECT_NAME:-runveil}
 
 networks:
   default:
-    name: ${NETWORK_NAME:-keystone-net}
+    name: ${NETWORK_NAME:-runveil-net}
     driver: bridge
 
 volumes:
@@ -16,7 +16,7 @@ volumes:
 services:
   postgres:
     image: postgres:16-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-keystone}-postgres
+    container_name: ${COMPOSE_PROJECT_NAME:-runveil}-postgres
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -34,11 +34,11 @@ services:
       - pg_data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d:ro
     labels:
-      keystone.role: "postgres"
+      runveil.role: "postgres"
 
   neo4j:
     image: neo4j:5.23-community
-    container_name: ${COMPOSE_PROJECT_NAME:-keystone}-neo4j
+    container_name: ${COMPOSE_PROJECT_NAME:-runveil}-neo4j
     restart: unless-stopped
     environment:
       NEO4J_AUTH: ${NEO4J_USERNAME}/${NEO4J_PASSWORD}
@@ -63,11 +63,11 @@ services:
       retries: 30
       start_period: 15s
     labels:
-      keystone.role: "graph"
+      runveil.role: "graph"
 
   nats:
     image: nats:2.10-alpine
-    container_name: ${COMPOSE_PROJECT_NAME:-keystone}-nats
+    container_name: ${COMPOSE_PROJECT_NAME:-runveil}-nats
     restart: unless-stopped
     command: >
       -js
@@ -86,4 +86,4 @@ services:
       retries: 20
       start_period: 5s
     labels:
-      keystone.role: "messaging"
+      runveil.role: "messaging"

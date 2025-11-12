@@ -1,4 +1,4 @@
-module keystone/cli
+module runveil/cli
 
 go 1.23.0
 

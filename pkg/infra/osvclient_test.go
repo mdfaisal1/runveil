@@ -28,7 +28,7 @@ func TestOSVClient_RetryAndCache(t *testing.T) {
 
 	// Use a temp cache directory so we don't touch the user's cache
 	tmp := t.TempDir()
-	t.Setenv("KEYSTONE_CACHE_DIR", tmp)
+	t.Setenv("Runveil_CACHE_DIR", tmp)
 
 	c := NewOSV()
 	c.SetOSVEndpoint(ts.URL)

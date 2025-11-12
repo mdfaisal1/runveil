@@ -12,14 +12,14 @@ type Config struct {
 	RuntimeNet string `env:"RUNTIME_NET" envDefault:"host"`
 
 	// Postgres
-	PgHostURL     string `env:"PG_URL_HOST" envDefault:"postgres://keystone:keystone@localhost:5432/keystone?sslmode=disable"`
-	PgInternalURL string `env:"PG_URL_INTERNAL" envDefault:"postgres://keystone:keystone@postgres:5432/keystone?sslmode=disable"`
+	PgHostURL     string `env:"PG_URL_HOST" envDefault:"postgres://runveil:runveil@localhost:5432/runveil?sslmode=disable"`
+	PgInternalURL string `env:"PG_URL_INTERNAL" envDefault:"postgres://runveil:runveil@postgres:5432/runveil?sslmode=disable"`
 
 	// Neo4j
 	Neo4jHostURI     string `env:"NEO4J_URI_HOST" envDefault:"bolt://localhost:7687"`
 	Neo4jInternalURI string `env:"NEO4J_URI_INTERNAL" envDefault:"bolt://neo4j:7687"`
 	Neo4jUser        string `env:"NEO4J_USER" envDefault:"neo4j"`
-	Neo4jPass        string `env:"NEO4J_PASS" envDefault:"keystone"`
+	Neo4jPass        string `env:"NEO4J_PASS" envDefault:"Runveil"`
 
 	// NATS
 	NatsHostURL     string `env:"NATS_URL_HOST" envDefault:"nats://localhost:4222"`

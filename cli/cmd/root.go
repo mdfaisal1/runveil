@@ -7,8 +7,8 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "keystone",
-	Short: "Keystone CLI",
+	Use:   "runveil",
+	Short: "runveil CLI",
 }
 
 func Execute() {

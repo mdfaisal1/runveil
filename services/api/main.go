@@ -20,7 +20,7 @@ func mustEnv(key string) string {
 }
 
 func main() {
-	dsn := mustEnv("POSTGRES_URL") // e.g. postgres://keystone:keystone@localhost:5432/keystone?sslmode=disable
+	dsn := mustEnv("POSTGRES_URL") // e.g. postgres://Runveil:Runveil@localhost:5432/Runveil?sslmode=disable
 
 	db, err := sql.Open("pgx", dsn)
 	if err != nil {

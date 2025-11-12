@@ -1,4 +1,4 @@
-module keystone/services/api
+module runveil/services/api
 
 go 1.25.3
 

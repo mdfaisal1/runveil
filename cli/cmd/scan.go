@@ -11,7 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"keystone/pkg/infra"
+	"runveil/pkg/infra"
 )
 
 /********** report model **********/
@@ -208,7 +208,7 @@ var scanCmd = &cobra.Command{
 				fmt.Printf("❌ post failed: %v\n", err)
 				os.Exit(1)
 			}
-			fmt.Println("📤 Posted scan to Keystone API.")
+			fmt.Println("📤 Posted scan to Runveil API.")
 		}
 
 		// CI/CD gating
@@ -223,7 +223,7 @@ func init() {
 	rootCmd.AddCommand(scanCmd)
 
 	// Existing flags
-	scanCmd.Flags().BoolVar(&flagPost, "post", false, "Send the generated report to Keystone API")
+	scanCmd.Flags().BoolVar(&flagPost, "post", false, "Send the generated report to Runveil API")
 	scanCmd.Flags().StringVar(&flagProject, "project", "", "Project slug (required with --post)")
 
 	// Formatting
@@ -283,7 +283,7 @@ func extractNpmPackages(lock map[string]any) []dep {
 
 func renderMarkdown(rep report) []byte {
 	var b strings.Builder
-	fmt.Fprintf(&b, "# Keystone Scan Report — %s\n\n", safe(rep.ProjectSlug, "N/A"))
+	fmt.Fprintf(&b, "# Runveil Scan Report — %s\n\n", safe(rep.ProjectSlug, "N/A"))
 	fmt.Fprintf(&b, "**Findings:** %d  •  **Max Severity:** %s  •  **Generated:** %s UTC\n\n",
 		rep.Total, strings.ToUpper(string(rep.MaxSeverity)), rep.GeneratedAt)
 	if rep.Total == 0 {

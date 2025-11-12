@@ -1,146 +1,130 @@
-# 🧠 Keystone — The Next-Gen Runtime-Aware SCA Platform
+# Runveil
 
-> “Security intelligence that *understands what actually runs* — not just what’s imported.”
+> **Motto:** *See the risk. Fix the risk. Ship with confidence.*
 
-Keystone is a **next-generation Software Composition Analysis (SCA) platform** built to redefine how modern DevSecOps teams identify, understand, and remediate vulnerabilities.  
-It merges static dependency scanning with **runtime intelligence**, **correlation graphs**, and **automated remediation**, forming a unified, cloud-native control plane for the software supply chain.
-
----
-
-## 🌟 Vision
-
-Keystone’s mission is simple yet bold —  
-> Empower developers with **real, actionable security intelligence**, not noise.
-
-Unlike legacy tools (Snyk, Dependabot, etc.) that only scan manifests, Keystone understands *runtime behavior*, *reachability*, and *impact*.  
-By combining Go, Rust, and TypeScript across a distributed microservice architecture, Keystone transforms static reports into **live, contextual security insights**.
+Runveil is a developer‑first risk graph for your code and supply chain. It ingests scans/SBOMs, normalizes them in Postgres, projects relationships in Neo4j, and exposes a clean API/CLI for “what to fix next”.
 
 ---
 
-## 🚀 Core Architecture
-
-## 🧠 Technologies Involved
-
-| Layer | Technology | Purpose |
-|-------|-------------|----------|
-| **CLI** | Go + Cobra | Scans lockfiles, connects to OSV.dev |
-| **Agent** | Rust + aya (eBPF) | Runtime reachability tracing |
-| **API** | Go + Gin | REST + telemetry ingestion |
-| **Orchestrator** | Go + NATS JetStream | Event router, job scheduling |
-| **Policy** | Go + OPA/Rego | Evaluate org-level security policies |
-| **Correlation** | Go + Neo4j | Build software graph and relationships |
-| **Remediation** | Go + GitHub/GitLab APIs | Auto PRs, dependency patching |
-| **Dashboard** | Next.js + TypeScript | Visualization and management |
-| **Data Layer** | PostgreSQL + Neo4j | Scan findings, dependency graph |
+## What it is (at a glance)
+- **API (Go)** – REST (Gin) for ingest/read.
+- **CLI (Go)** – `doctor`, `migrate`, ingest helpers.
+- **Agent (Rust)** – performance‑critical parsers & SBOM helpers (optional, used for high‑throughput ingestion and future on‑host sensors).
+- **Datastores** – PostgreSQL 16 (truth), Neo4j 5 (relationships).
+- **Messaging** – NATS in dev → **Kafka** in prod.
+- **One command dev** – `docker compose up -d`.
 
 ---
 
-## 🧩 Current Status — Phase 1 ✅ (60% Complete)
-
-| Component | Progress | Notes |
-|------------|-----------|-------|
-| CLI (Go + Cobra) | ✅ Done | Lockfile parser + OSV lookup |
-| Migrations (Goose + Postgres) | ✅ Done | Core schema + versioning |
-| API Service (Gin) | ✅ Done | `/health` and `/v1/projects/:slug/scans/ingest` |
-| Workspace Setup | ✅ Done | go.work multi-module support |
-| Ingest Pipeline | ✅ Partial | Inserts scans & packages |
-| JSON / Report Output | 🔜 Next | Export scan results |
-| Post-scan Upload (`--post`) | 🔜 Next | CLI → API sync |
-| CI Thresholds & Exit Codes | 🔜 Next | For GitHub Actions |
-| Tests & Docs | 🔜 Later | Parser + integration |
+## Architecture (short)
+```
+CLI (Go) ──> API (Go) ──writes──> Postgres
+                       └─events──> NATS/Kafka ──> Rust Agent (normalize/parse) ──> Postgres + Neo4j
+                                                          Neo4j <── graph build / queries
+```
+Tables today: `projects`, `packages`, `findings`, `scans`, `vulnerabilities` (+ `goose_db_version`).
 
 ---
 
-## 💾 Local Development
+## Tech
+| Layer | Primary | Notes |
+|---|---|---|
+| API/CLI | Go 1.25+ | Gin, stdlib, Goose for SQL migrations |
+| Agent | **Rust 1.79+** | Async (Tokio), `serde`/`reqwest`; compiled binary used by API for heavy parsing (SBOM, OSV, lockfiles) |
+| DB | PostgreSQL 16 | Source of truth |
+| Graph | Neo4j 5 | Impact/radius queries |
+| Bus | NATS (dev) | Kafka planned for scale |
 
-### 1️⃣ Start Postgres
+---
+
+## Current status
+- ✅ Workspace set up (`go.work`), compose for Postgres/Neo4j/NATS
+- ✅ Migrations: `0001_init.sql`, `0002_core_scan_model.sql`
+- ✅ API `/health`, ingest route scaffold
+- ✅ CLI `migrate up`, `doctor`
+- 🛠️ Rust agent: parsers & SBOM helpers in progress
+- 🔜 Graph build + reachability queries
+- 🔜 UI/Dashboard + CI integrations
+
+---
+
+## Local development (2 minutes)
+
+### 1) Infra
 ```bash
-docker compose -f deploy/compose/docker-compose.yml up -d postgres
+# Windows (cmd)
+set COMPOSE_PROJECT_NAME=runveil && cd deploy\compose && docker compose up -d
+
+# macOS/Linux
+export COMPOSE_PROJECT_NAME=runveil && cd deploy/compose && docker compose up -d
 ```
 
-### 2️⃣ Run Migrations
+### 2) DB & checks (CLI – Go)
 ```bash
-cd cli
-go run . migrate up
+# from repo root
+go build -o runveil ./cli
+
+# Windows
+set RUNTIME_NET=host
+set POSTGRES_URL=postgres://runveil:runveil@localhost:5432/runveil?sslmode=disable
+set NEO4J_URL=bolt://localhost:7687
+set NATS_URL=nats://localhost:4222
+.
+unveil migrate up && .
+unveil doctor
+
+# macOS/Linux
+export RUNTIME_NET=host POSTGRES_URL=postgres://runveil:runveil@localhost:5432/runveil?sslmode=disable NEO4J_URL=bolt://localhost:7687 NATS_URL=nats://localhost:4222
+./runveil migrate up && ./runveil doctor
 ```
 
-### 3️⃣ Start API Service
+### 3) API (Go)
 ```bash
-cd ../services/api
-set POSTGRES_URL=postgres://keystone:keystone@localhost:5432/keystone?sslmode=disable
-go run .
+# Windows
+cd services\api && go build -o runveil-api.exe && .
+unveil-api.exe
+# macOS/Linux
+cd services/api && go build -o runveil-api && ./runveil-api
+
+# Check
+curl http://localhost:8080/health   # {"ok":true}
 ```
 
-### 4️⃣ Test
-```bash
-curl http://localhost:8080/health
-# -> {"ok":true}
+### 4) Agent (Rust) *(optional)*
+```
+# Windows (PowerShell)
+cd agent
+rustup toolchain install stable
+cargo build --release
+
+# binary will be used by API for heavy parsing tasks
 ```
 
----
-
-## ⚔️ Why Keystone > Other
-
-| Capability | **Other** | **Keystone** |
-|-------------|-----------|---------------|
-| Runtime Awareness | ❌ None | ✅ eBPF runtime tracing |
-| Unified Scanning | ❌ Split tools | ✅ Single unified scan |
-| Auto Remediation | ⚠️ Suggests | ✅ Creates PRs + verifies build |
-| Supply Chain Detection | ⚠️ CVE-based | ✅ Anomaly & package poisoning |
-| False Positive Reduction | ❌ Alerts all | ✅ Reachability-based suppression |
-| Data Openness | ❌ Proprietary | ✅ OSV.dev + NVD open data |
-| Developer Experience | ⚠️ Enterprise-first | ✅ CLI-first, GitOps-native |
+**Defaults**
+- DB: `runveil:runveil@localhost:5432/runveil`
+- Neo4j: `bolt://localhost:7687` (`neo4j` / `runveil`)
+- Bus: `nats://localhost:4222` (Kafka later)
+- Admin (local): `runveil_admin`
 
 ---
 
-## 🧩 Example Folder Structure
-
-```
-keystone/
-├── agent/              # Rust (aya / eBPF)
-├── cli/                # Go (Cobra)
-│   ├── cmd/
-│   ├── migrate.go
-│   └── scan.go
-├── services/
-│   ├── api/            # Gin REST API
-│   ├── orchestrator/
-│   ├── correlation/
-│   ├── policy/
-│   └── remediation/
-├── dashboard/          # Next.js frontend
-├── deploy/
-│   ├── compose/
-│   ├── helm/
-│   └── terraform/
-└── go.work
-```
+## Why Runveil (short)
+- **Graph‑native** risk views → understand blast radius.
+- **Fast & local** → minimal deps, quick CLI.
+- **Open & composable** → Go + Rust, SQL you can read.
+- **Incremental** → start with ingest; add graph, CI gates later.
 
 ---
 
-## 🔮 Roadmap
-
-| Phase | Goal | Key Milestones |
-|-------|------|----------------|
-| **1. Core CLI MVP** | ✅ Static scanning | OSV.dev + lockfile parsing |
-| **2. Runtime-Aware Agent** | 🚧 Upcoming | eBPF traces + reachability map |
-| **3. Unified Control Plane** | 🔜 | Orchestrator + NATS events |
-| **4. Dashboard & Integrations** | 🔜 | Next.js analytics + Jira/CI |
-| **5. Intelligent Automation** | 🔜 | AI remediation + anomaly detection |
+## Roadmap (high level)
+- **Ingest**: OSV/CVE, SBOM (CycloneDX), lockfiles (npm/go/pip).
+- **Graph**: build pipeline & reachability queries in Neo4j.
+- **Prioritization**: exploitability + business context.
+- **CI/CD**: PR comments/gates; notifications/webhooks.
+- **Messaging**: switch to **Kafka** for prod scale.
+- **UI**: dashboard + team workflow.
 
 ---
 
-## 🧭 Project Motto
-
-> “Build securely — without slowing down innovation.”
-
----
-
-## 🌍 License
-MIT © 2025 **Mohammad Faisal**  
-Keystone is open for collaboration — contributions, ideas, and feedback are welcome.
-
----
-
-### 📊 View Live Diagram
-🔗 [View architecture on Mermaid Live](https://mermaid.live/view#pako:eNqFVG1P2zAQ_iuWJfiy0jYUShsNpK4FNNRBl1T7sGWanOSaGNK4sx1GB_z3nZ0mTQeIL4nv5bnn7vI4jzQSMVCXLjLxJ0qZ1GTqBTkhe3vk9PSUjDMOuVbmbLyqCBPJVmnlNz5CxtPPPwKKz4-h7JxdCvKBjEUomTX9iOWKZCK6W_AMVEB_lqAJU2komIwRWp8t4hoedPtW2fM3rgqWEZazbK15tIWPEuRHqFfkmi-htC3EK5QmHQKfZhcbu8yIYVXBIY-DvDmlkEB8kPc8gldmxeivKrphn5mJ8Vmhysl53rngIUhcgHfuz-tmb2SUgtKSaSER1zQt8PwemydSFNpir0S4HRTZJWRMc5GbJW-tHeprEEe3pOw3LHgWg6wrzETGozWCy8MO7mY26niQCAL3LCtMQzXMgyXEvCJuWDsFRoUWZOYpsk9WTJu53tjxF1CKJTxPXuy3jpS816O5j4TmRa5A-1oCW75RdMI0e1HPOKvJlU4kKDu7Pfpfpw1V7pMFz2Nk3q7bLtLQm7dNncAKaSHHzdn6b7RygReo1g7eBXJwcPaEvDf-nHSUoQvokxGOideC32RdnmNSbPre5lhFb-JzyHD_Wq7ruM2YWZZ6zIYPMasizLhKieFuS_hdoOQM3CzWZNoFG3hTjmXhpmdTTUueJEZUT01Fvp9cau79vIa-yh6aSjdd2g_yWqA5_Ubh_7ub4t2N0RZNJI-pq2UBLboEuWTGpI8Ghx2mCA2oi8eYybuABvkzYlYs_y7EsoLhzU1S6i5YptAqVvglYcIZymWbYjQkxwJ_RtQ9thWo-0gfqDvsto-drnPUG5z0h8Ou06Jr6g6c9slw0DvsO71-rzt0nOcW_WsZu-1Bv-f0neM-AnqHQ-f5H8jr4uM)
+## License
+Apache-2.0 (see [LICENSE](./LICENSE)).

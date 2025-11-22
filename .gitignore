@@ -1,32 +1,67 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
+# -----------------------------------------
+# RUNVEIL PROJECT .gitignore
+# (Go + Rust + Node + Docker + VSCode)
+# -----------------------------------------
+
+# ==== Go ====
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-
-# Test binary, built with `go test -c`
 *.test
-
-# Code coverage profiles and other test artifacts
 *.out
 coverage.*
 *.coverprofile
 profile.cov
-
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
 go.work
 go.work.sum
 
-# env file
-.env
+# ==== Rust ====
+# Ignore Rust build directory
+/target/
+**/target/
 
-# Editor/IDE
-# .idea/
-# .vscode/
+# Rust/Cargo files to keep:
+!Cargo.toml
+!Cargo.lock
+
+# ==== Node / npm ====
+node_modules/
+npm-debug.log
+yarn-error.log
+pnpm-debug.log
+
+# npm lock files you want to ignore individually if not needed:
+# package-lock.json
+# yarn.lock
+
+# ==== Docker ====
+*.pid
+
+# ==== VSCode ====
+.vscode/
+.history/
+
+# ==== Logs ====
+*.log
+
+# ==== Environment Files ====
+.env
+.env.local
+.env.*.local
+
+# ==== OS / System Noise ====
+.DS_Store
+Thumbs.db
+
+# ==== Binary outputs ====
+*.pdb
+*.dSYM/
+*.pdb
+*.dll
+*.bin
+*.run
+*.exe~
+*.lock
+

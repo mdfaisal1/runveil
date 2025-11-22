@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -38,6 +39,23 @@ type IngestFinding struct {
 	IntroducedVia string `json:"introduced_via,omitempty"`
 }
 
+type rawScanReport struct {
+	ProjectSlug string           `json:"project_slug"`
+	Total       int              `json:"total"`
+	Findings    []rawScanFinding `json:"findings"`
+	MaxSeverity string           `json:"max_severity"`
+	GeneratedAt string           `json:"generated_at"`
+}
+
+type rawScanFinding struct {
+	Package   string `json:"package"`
+	Version   string `json:"version"`
+	Ecosystem string `json:"ecosystem"`
+	VulnID    string `json:"vuln_id"`
+	Summary   string `json:"summary"`
+	Severity  string `json:"severity"`
+}
+
 type IngestResponse struct {
 	ScanID          string `json:"scan_id"`
 	Packages        int    `json:"packages"`
@@ -51,6 +69,66 @@ type rawReportEnvelope struct {
 }
 
 // ---------- router hookup ----------
+
+func derivePackagesFromReport(raw json.RawMessage) []IngestPkg {
+	if len(raw) == 0 {
+		return nil
+	}
+
+	var rep rawScanReport
+	if err := json.Unmarshal(raw, &rep); err != nil {
+		// best-effort: if we can't parse, just return nil and let caller ignore
+		return nil
+	}
+	if len(rep.Findings) == 0 {
+		return nil
+	}
+
+	type key struct {
+		Ecosystem string
+		Name      string
+		Version   string
+	}
+
+	m := make(map[key]*IngestPkg)
+
+	for _, f := range rep.Findings {
+		k := key{
+			Ecosystem: f.Ecosystem,
+			Name:      f.Package,
+			Version:   f.Version,
+		}
+		if k.Ecosystem == "" {
+			k.Ecosystem = "npm"
+		}
+
+		pkg := m[k]
+		if pkg == nil {
+			pkg = &IngestPkg{
+				Ecosystem: k.Ecosystem,
+				Name:      k.Name,
+				Version:   k.Version,
+			}
+			m[k] = pkg
+		}
+
+		sev := strings.ToUpper(f.Severity)
+
+		pkg.Vulns = append(pkg.Vulns, IngestFinding{
+			Source:   "osv", // we currently scan via OSV
+			VulnID:   f.VulnID,
+			Summary:  f.Summary,
+			Severity: sev,
+			// Reachable, FixedVersion, IntroducedVia left as zero values
+		})
+	}
+
+	out := make([]IngestPkg, 0, len(m))
+	for _, pkg := range m {
+		out = append(out, *pkg)
+	}
+	return out
+}
 
 func registerIngest(r *gin.Engine, db *sql.DB) {
 	r.POST("/v1/projects/:slug/scans/ingest", func(c *gin.Context) {
@@ -96,6 +174,12 @@ func ingest(ctx context.Context, db *sql.DB, slug string, req *IngestRequest, ra
 	defer func() {
 		_ = tx.Rollback() // no-op if already committed
 	}()
+
+	if len(req.Packages) == 0 && len(rawReport) != 0 {
+		if pkgs := derivePackagesFromReport(rawReport); len(pkgs) > 0 {
+			req.Packages = pkgs
+		}
+	}
 
 	// 1) upsert project
 	var projectID string

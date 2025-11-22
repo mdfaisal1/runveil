@@ -1,130 +1,167 @@
-# Runveil
+## Runveil CLI
 
-> **Motto:** *See the risk. Fix the risk. Ship with confidence.*
+The Runveil CLI scans a Node.js project (`package-lock.json`) for known vulnerabilities using OSV, and can optionally post the results to a Runveil API backend.
 
-Runveil is a developer‑first risk graph for your code and supply chain. It ingests scans/SBOMs, normalizes them in Postgres, projects relationships in Neo4j, and exposes a clean API/CLI for “what to fix next”.
+### Install / Build
 
----
-
-## What it is (at a glance)
-- **API (Go)** – REST (Gin) for ingest/read.
-- **CLI (Go)** – `doctor`, `migrate`, ingest helpers.
-- **Agent (Rust)** – performance‑critical parsers & SBOM helpers (optional, used for high‑throughput ingestion and future on‑host sensors).
-- **Datastores** – PostgreSQL 16 (truth), Neo4j 5 (relationships).
-- **Messaging** – NATS in dev → **Kafka** in prod.
-- **One command dev** – `docker compose up -d`.
-
----
-
-## Architecture (short)
-```
-CLI (Go) ──> API (Go) ──writes──> Postgres
-                       └─events──> NATS/Kafka ──> Rust Agent (normalize/parse) ──> Postgres + Neo4j
-                                                          Neo4j <── graph build / queries
-```
-Tables today: `projects`, `packages`, `findings`, `scans`, `vulnerabilities` (+ `goose_db_version`).
-
----
-
-## Tech
-| Layer | Primary | Notes |
-|---|---|---|
-| API/CLI | Go 1.25+ | Gin, stdlib, Goose for SQL migrations |
-| Agent | **Rust 1.79+** | Async (Tokio), `serde`/`reqwest`; compiled binary used by API for heavy parsing (SBOM, OSV, lockfiles) |
-| DB | PostgreSQL 16 | Source of truth |
-| Graph | Neo4j 5 | Impact/radius queries |
-| Bus | NATS (dev) | Kafka planned for scale |
-
----
-
-## Current status
-- ✅ Workspace set up (`go.work`), compose for Postgres/Neo4j/NATS
-- ✅ Migrations: `0001_init.sql`, `0002_core_scan_model.sql`
-- ✅ API `/health`, ingest route scaffold
-- ✅ CLI `migrate up`, `doctor`
-- 🛠️ Rust agent: parsers & SBOM helpers in progress
-- 🔜 Graph build + reachability queries
-- 🔜 UI/Dashboard + CI integrations
-
----
-
-## Local development (2 minutes)
-
-### 1) Infra
 ```bash
-# Windows (cmd)
-set COMPOSE_PROJECT_NAME=runveil && cd deploy\compose && docker compose up -d
-
-# macOS/Linux
-export COMPOSE_PROJECT_NAME=runveil && cd deploy/compose && docker compose up -d
-```
-
-### 2) DB & checks (CLI – Go)
-```bash
-# from repo root
+# From repo root
 go build -o runveil ./cli
-
-# Windows
-set RUNTIME_NET=host
-set POSTGRES_URL=postgres://runveil:runveil@localhost:5432/runveil?sslmode=disable
-set NEO4J_URL=bolt://localhost:7687
-set NATS_URL=nats://localhost:4222
-.
-unveil migrate up && .
-unveil doctor
-
-# macOS/Linux
-export RUNTIME_NET=host POSTGRES_URL=postgres://runveil:runveil@localhost:5432/runveil?sslmode=disable NEO4J_URL=bolt://localhost:7687 NATS_URL=nats://localhost:4222
-./runveil migrate up && ./runveil doctor
 ```
 
-### 3) API (Go)
+On Windows, you can copy the binary somewhere on your PATH, for example:
+
+```text
+C:\tools\runveil\runveil.exe
+```
+
+and create a simple alias:
+
+```bat
+:: C:\tools\runveil\rv.bat
+@echo off
+runveil %*
+```
+
+Now you can use `rv` instead of `runveil`:
+
 ```bash
-# Windows
-cd services\api && go build -o runveil-api.exe && .
-unveil-api.exe
-# macOS/Linux
-cd services/api && go build -o runveil-api && ./runveil-api
-
-# Check
-curl http://localhost:8080/health   # {"ok":true}
+rv --help
 ```
-
-### 4) Agent (Rust) *(optional)*
-```
-# Windows (PowerShell)
-cd agent
-rustup toolchain install stable
-cargo build --release
-
-# binary will be used by API for heavy parsing tasks
-```
-
-**Defaults**
-- DB: `runveil:runveil@localhost:5432/runveil`
-- Neo4j: `bolt://localhost:7687` (`neo4j` / `runveil`)
-- Bus: `nats://localhost:4222` (Kafka later)
-- Admin (local): `runveil_admin`
 
 ---
 
-## Why Runveil (short)
-- **Graph‑native** risk views → understand blast radius.
-- **Fast & local** → minimal deps, quick CLI.
-- **Open & composable** → Go + Rust, SQL you can read.
-- **Incremental** → start with ingest; add graph, CI gates later.
+### Start local infra (Postgres, Neo4j, NATS)
+
+```bash
+cd deploy/compose
+export COMPOSE_PROJECT_NAME=runveil   # on Windows: set COMPOSE_PROJECT_NAME=runveil
+docker compose up -d
+```
+
+Check services:
+
+```bash
+docker compose ps
+```
+
+You should see `runveil-postgres`, `runveil-neo4j`, `runveil-nats` running.
 
 ---
 
-## Roadmap (high level)
-- **Ingest**: OSV/CVE, SBOM (CycloneDX), lockfiles (npm/go/pip).
-- **Graph**: build pipeline & reachability queries in Neo4j.
-- **Prioritization**: exploitability + business context.
-- **CI/CD**: PR comments/gates; notifications/webhooks.
-- **Messaging**: switch to **Kafka** for prod scale.
-- **UI**: dashboard + team workflow.
+### Run database migrations
+
+From repo root:
+
+```bash
+runveil migrate up
+runveil migrate status
+```
+
+This applies all Goose migrations (including `0003_add_scan_report_json.sql`) to the `runveil` Postgres database.
 
 ---
 
-## License
-Apache-2.0 (see [LICENSE](./LICENSE)).
+### Connectivity check
+
+```bash
+runveil doctor
+```
+
+This verifies connectivity to:
+
+- Postgres (`postgres://runveil:runveil@localhost:5432/runveil`)
+- Neo4j (`bolt://localhost:7687`)
+- NATS (`nats://localhost:4222`)
+
+You should see a ✅ summary if all backends are reachable.
+
+---
+
+### Scan a Node.js project (local only)
+
+From anywhere:
+
+```bash
+rv scan D:\path\to\project\package-lock.json --format md --out runveil-scan.md
+```
+
+or, in generic form:
+
+```bash
+runveil scan /path/to/package-lock.json --format md --out runveil-scan.md
+```
+
+- `--format md|json` (default `json`)
+- `--out` writes to a file (otherwise prints to stdout)
+
+The Markdown report includes:
+
+- Total findings
+- Max severity
+- A table of packages, versions, vuln IDs and summaries.
+
+---
+
+### CI-style policy gating (`--fail-on`)
+
+To fail the build if any vulnerability meets or exceeds a severity:
+
+```bash
+runveil scan package-lock.json --format json --fail-on low
+```
+
+Valid values: `none|low|medium|high|critical` (default `none`).
+
+Example (GitHub Actions):
+
+```yaml
+- name: Run Runveil scan
+  run: |
+    go build -o runveil ./cli
+    ./runveil scan package-lock.json --format json --fail-on high
+```
+
+If the maximum severity is `high` or `critical`, the command exits with a non-zero code and the pipeline fails.
+
+---
+
+### Run the API locally & post scan results
+
+Start the API (from repo root):
+
+```bash
+# Configure Postgres URL
+export POSTGRES_URL="postgres://runveil:runveil@localhost:5432/runveil?sslmode=disable"
+# Windows (CMD): set POSTGRES_URL=...
+
+cd services/api
+go run .
+```
+
+Health check:
+
+```bash
+curl http://localhost:8080/health
+# -> {"ok":true}
+```
+
+Now run a scan and post the result:
+
+```bash
+runveil scan path/to/package-lock.json \
+  --format json \
+  --project my-service \
+  --post
+```
+
+This will:
+
+- Create / update a `projects` row (`slug = my-service`)
+- Insert a `scans` row with the JSON report in `report_json`
+
+You should see:
+
+```text
+✅ Posted scan to Runveil API.
+```

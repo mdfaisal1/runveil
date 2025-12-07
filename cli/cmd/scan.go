@@ -211,6 +211,11 @@ var scanCmd = &cobra.Command{
 			fmt.Println("📤 Posted scan to Runveil API.")
 		}
 
+		// 🔥 NEW: runtime summary (if a project slug is provided)
+		if flagProject != "" {
+			maybePrintRuntimeSummary(flagProject)
+		}
+
 		// CI/CD gating
 		if shouldFail(maxSeen, threshold) {
 			fmt.Printf("⛔ Policy fail: max severity %s ≥ --fail-on %s\n", strings.ToUpper(string(maxSeen)), strings.ToUpper(string(threshold)))
@@ -361,4 +366,50 @@ func mapCVSS(sevs []struct {
 	default:
 		return severityLow
 	}
+}
+
+/********** runtime summary helpers **********/
+
+type runtimeSummary struct {
+	Total    int
+	Active   int
+	Observed int
+	Dormant  int
+}
+
+func summarizeRuntime(fr *findingsResponse) runtimeSummary {
+	var s runtimeSummary
+	for _, f := range fr.Findings {
+		s.Total++
+		switch f.RuntimeState {
+		case "active":
+			s.Active++
+		case "observed":
+			s.Observed++
+		case "dormant":
+			s.Dormant++
+		}
+	}
+	return s
+}
+
+func maybePrintRuntimeSummary(projectSlug string) {
+	fr, err := fetchFindings(projectSlug)
+	if err != nil {
+		// Don't fail the scan if API is down; just warn.
+		fmt.Fprintf(os.Stderr, "⚠ runtime summary unavailable for %s: %v\n", projectSlug, err)
+		return
+	}
+
+	s := summarizeRuntime(fr)
+
+	if s.Total == 0 {
+		fmt.Printf("\nRuntime summary for %s: no stored findings yet.\n", projectSlug)
+		return
+	}
+
+	fmt.Printf(
+		"\nRuntime summary for %s: %d findings (%d active, %d observed, %d dormant).\n",
+		projectSlug, s.Total, s.Active, s.Observed, s.Dormant,
+	)
 }

@@ -21,4 +21,9 @@ func init() {
 	// Register subcommands that don't self-register
 	rootCmd.AddCommand(NewMigrateCmd())
 	// If your scan command self-registers in scan.go via init(), no need to add it here.
+	rootCmd.AddCommand(scanCmd)
+	rootCmd.AddCommand(findingsCmd)
+
+	findingsCmd.Flags().StringVar(&findingsProject, "project", "", "Project slug (required)")
+	findingsCmd.Flags().StringVar(&findingsFormat, "format", "md", "Output format: md or json")
 }

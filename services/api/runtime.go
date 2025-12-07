@@ -135,3 +135,25 @@ func applyRuntimeObservation(
 	}
 	return totalUpdated, nil
 }
+
+// deriveRuntimeState computes a simple runtime state for a finding
+// from its evidence fields. This is DYNAMIC: not stored in DB, only
+// computed when we read.
+func deriveRuntimeState(evidenceCount int64, lastSeenAt *time.Time) string {
+	// Never seen at runtime → dormant
+	if evidenceCount == 0 || lastSeenAt == nil {
+		return "dormant"
+	}
+
+	// If we have evidence, decide how "fresh" it is.
+	const activeWindow = 24 * time.Hour
+	now := time.Now().UTC()
+
+	if now.Sub(*lastSeenAt) <= activeWindow {
+		// Recently seen (last 24h) → active
+		return "active"
+	}
+
+	// Seen in the past, but not recently → observed
+	return "observed"
+}

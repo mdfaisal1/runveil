@@ -34,6 +34,7 @@ func main() {
 	r := gin.Default()
 	registerIngest(r, db)
 	registerRuntime(r, db)
+	registerFindings(r, db)
 
 	// GET /health → { ok: true } if DB is reachable
 	r.GET("/health", func(c *gin.Context) {

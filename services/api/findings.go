@@ -2,7 +2,9 @@ package main
 
 import (
 	"database/sql"
+	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,88 +32,114 @@ type FindingsResponse struct {
 // registerFindings registers the GET endpoint that lists findings for a project.
 func registerFindings(r *gin.Engine, db *sql.DB) {
 	r.GET("/v1/projects/:slug/findings", func(c *gin.Context) {
-		slug := c.Param("slug")
 		ctx := c.Request.Context()
+		slug := c.Param("slug")
 
-		rows, err := db.QueryContext(ctx, `
-            SELECT
-                p.name,
-                p.version,
-                p.ecosystem,
-                v.vuln_id,
-                v.summary,
-                v.severity,
-                f.reachable,
-                f.evidence_count,
-                f.last_seen_at
-                FROM findings f
-				JOIN packages p   ON f.package_id = p.id
-				JOIN vulnerabilities v ON f.vulnerability_id = v.id
-				JOIN scans s      ON p.scan_id = s.id
-				JOIN projects pr  ON s.project_id = pr.id
-            WHERE pr.slug = $1
-            ORDER BY f.updated_at DESC
-        `, slug)
+		log.Printf("listing findings for project slug=%s", slug)
+
+		// --- 1) Read optional filters from query params ---
+		// /v1/projects/:slug/findings?reachable=true&has_evidence=true
+		reachableParam := strings.ToLower(strings.TrimSpace(c.Query("reachable")))
+		hasEvidenceParam := strings.ToLower(strings.TrimSpace(c.Query("has_evidence")))
+
+		// --- 2) Build base query ---
+		// Schema (from your migrations):
+		//   projects(id, slug, ...)
+		//   scans(project_id -> projects.id)
+		//   packages(scan_id -> scans.id)
+		//   findings(package_id -> packages.id, vulnerability_id -> vulnerabilities.id)
+		query := `
+SELECT
+    p.name,
+    p.version,
+    p.ecosystem,
+    v.vuln_id,
+    v.summary,
+    v.severity,
+    f.reachable,
+    f.evidence_count,
+    f.last_seen_at
+FROM findings f
+JOIN packages p        ON p.id = f.package_id
+JOIN scans s           ON s.id = p.scan_id
+JOIN projects proj     ON proj.id = s.project_id
+JOIN vulnerabilities v ON v.id = f.vulnerability_id
+WHERE proj.slug = $1
+`
+
+		// --- 3) Apply filters when present ---
+		// reachable=true  -> f.reachable = TRUE
+		// reachable=false -> f.reachable = FALSE
+		if reachableParam == "true" {
+			query += " AND f.reachable = TRUE"
+		} else if reachableParam == "false" {
+			query += " AND f.reachable = FALSE"
+		}
+
+		// has_evidence=true  -> f.evidence_count > 0
+		// has_evidence=false -> f.evidence_count = 0
+		if hasEvidenceParam == "true" {
+			query += " AND f.evidence_count > 0"
+		} else if hasEvidenceParam == "false" {
+			query += " AND f.evidence_count = 0"
+		}
+
+		// --- 4) ORDER BY ---
+		query += `
+ORDER BY
+    v.severity DESC,
+    p.name ASC
+`
+
+		// --- 5) Execute query ---
+		rows, err := db.QueryContext(ctx, query, slug)
 		if err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			// Log full error + query so we can see what broke (during dev)
+			log.Printf("query findings failed: %v\nSQL: %s", err, query)
+
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "failed to query findings",
+				"details": err.Error(), // TEMP: show in response during dev
+			})
 			return
 		}
 		defer rows.Close()
 
 		var out []FindingView
-
 		for rows.Next() {
-			var (
-				pkgName   string
-				version   string
-				ecosystem string
-				vulnID    string
-				summary   string
-				severity  string
-				reachable bool
-				evidence  int64
-				lastSeen  *time.Time
-			)
-
+			var v FindingView
 			if err := rows.Scan(
-				&pkgName,
-				&version,
-				&ecosystem,
-				&vulnID,
-				&summary,
-				&severity,
-				&reachable,
-				&evidence,
-				&lastSeen,
+				&v.Package,
+				&v.Version,
+				&v.Ecosystem,
+				&v.VulnID,
+				&v.Summary,
+				&v.Severity,
+				&v.Reachable,
+				&v.EvidenceCount,
+				&v.LastSeenAt,
 			); err != nil {
-				c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+				c.JSON(http.StatusInternalServerError, gin.H{
+					"error": "failed to scan findings",
+				})
 				return
 			}
 
-			state := deriveRuntimeState(evidence, lastSeen)
-
-			out = append(out, FindingView{
-				Package:       pkgName,
-				Version:       version,
-				Ecosystem:     ecosystem,
-				VulnID:        vulnID,
-				Summary:       summary,
-				Severity:      severity,
-				Reachable:     reachable,
-				EvidenceCount: evidence,
-				LastSeenAt:    lastSeen,
-				RuntimeState:  state,
-			})
+			// derive runtime_state from evidence_count + last_seen_at
+			v.RuntimeState = deriveRuntimeState(v.EvidenceCount, v.LastSeenAt)
+			out = append(out, v)
 		}
 
 		if err := rows.Err(); err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "error iterating findings rows",
+			})
 			return
 		}
 
-		c.JSON(http.StatusOK, FindingsResponse{
-			ProjectSlug: slug,
-			Findings:    out,
+		c.JSON(http.StatusOK, gin.H{
+			"project_slug": slug,
+			"findings":     out,
 		})
 	})
 }

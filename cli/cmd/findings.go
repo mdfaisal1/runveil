@@ -92,17 +92,49 @@ var findingsCmd = &cobra.Command{
 	},
 }
 
-// Markdown renderer: shows runtime state clearly
+// Markdown renderer: shows runtime state clearly + summary block
 func writeFindingsMarkdown(w io.Writer, fr *findingsResponse) error {
 	fmt.Fprintf(w, "# Runveil Findings — %s\n\n", fr.ProjectSlug)
+
 	if len(fr.Findings) == 0 {
 		fmt.Fprintln(w, "_No findings found for this project._")
 		return nil
 	}
 
+	// --- Summary aggregates ---
+	var reachableCount, dormantCount int
+	var latestEvidence *time.Time
+
+	for _, f := range fr.Findings {
+		// Treat anything that is not "dormant" as reachable (active/observed/etc.)
+		if f.RuntimeState == "dormant" {
+			dormantCount++
+		} else {
+			reachableCount++
+		}
+
+		if f.LastSeenAt != nil {
+			if latestEvidence == nil || f.LastSeenAt.After(*latestEvidence) {
+				latestEvidence = f.LastSeenAt
+			}
+		}
+	}
+
+	// --- Summary block ---
+	fmt.Fprintf(w, "- ✅ Reachable issues: %d\n", reachableCount)
+	fmt.Fprintf(w, "- 💤 Dormant issues: %d\n", dormantCount)
+	if latestEvidence != nil {
+		fmt.Fprintf(w, "- ⏱  Last evidence seen: %s\n\n",
+			latestEvidence.UTC().Format(time.RFC3339))
+	} else {
+		fmt.Fprintln(w, "- ⏱  Last evidence seen: –\n")
+	}
+
+	// --- Table header ---
 	fmt.Fprintln(w, "| Severity | Runtime | Package | Version | Ecosystem | Vuln ID | Summary | Evidence | Last Seen |")
 	fmt.Fprintln(w, "| --- | --- | --- | --- | --- | --- | --- | --- | --- |")
 
+	// --- Table rows ---
 	for _, f := range fr.Findings {
 		runtimeLabel := runtimeLabelFor(f.RuntimeState)
 

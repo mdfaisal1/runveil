@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -27,8 +28,40 @@ type RuntimeObservationRequest struct {
 // Register the runtime observation route with Gin.
 func registerRuntime(r *gin.Engine, db *sql.DB) {
 	r.POST("/v1/projects/:slug/runtime/observe", func(c *gin.Context) {
+		ctx := c.Request.Context()
 		slug := c.Param("slug")
 
+		// 1) Auth: require a valid runtime token
+		token := c.GetHeader("X-Runveil-Token")
+		if strings.TrimSpace(token) == "" {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"error": "missing runtime token (X-Runveil-Token)",
+			})
+			return
+		}
+
+		var ok bool
+		err := db.QueryRowContext(ctx, `
+			SELECT true
+			FROM projects
+			WHERE slug = $1
+			  AND runtime_token = $2
+		`, slug, token).Scan(&ok)
+		if err != nil {
+			if errors.Is(err, sql.ErrNoRows) {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"error": "invalid runtime token for project",
+				})
+				return
+			}
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error":   "failed to verify runtime token",
+				"details": err.Error(),
+			})
+			return
+		}
+
+		// 2) Parse payload
 		var req RuntimeObservationRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
@@ -47,7 +80,6 @@ func registerRuntime(r *gin.Engine, db *sql.DB) {
 			observedAt = req.ObservedAt.UTC()
 		}
 
-		ctx := c.Request.Context()
 		updated, err := applyRuntimeObservation(ctx, db, slug, &req, observedAt)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

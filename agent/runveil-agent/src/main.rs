@@ -21,10 +21,13 @@ struct Args {
     #[arg(long, value_name = "URL", default_value = "http://localhost:8080")]
     api_base: String,
 
-    /// JSON file with observed packages
+    /// Runtime token for this project (required by the API)
     ///
-    /// Example:
-    /// { "packages": [ { "name": "lodash", "version": "4.17.19" } ] }
+    /// Provide via --runtime-token OR set RUNVEIL_RUNTIME_TOKEN in your shell.
+    #[arg(long, value_name = "TOKEN")]
+    runtime_token: Option<String>,
+
+    /// JSON file with observed packages
     #[arg(long, value_name = "PATH")]
     packages_file: PathBuf,
 }
@@ -74,8 +77,25 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Sending runtime observation to: {}", url);
 
+    // Resolve token: flag overrides env var
+    let token = args
+        .runtime_token
+        .clone()
+        .or_else(|| std::env::var("RUNVEIL_RUNTIME_TOKEN").ok())
+        .filter(|t| !t.trim().is_empty())
+        .unwrap_or_else(|| {
+            eprintln!(
+                "Missing runtime token. Provide --runtime-token or set RUNVEIL_RUNTIME_TOKEN."
+            );
+            std::process::exit(1);
+        });
+
     let client = Client::new();
-    let resp = client.post(&url).json(&body).send()?;
+    let resp = client
+        .post(&url)
+        .header("X-Runveil-Token", token)
+        .json(&body)
+        .send()?;
 
     let status = resp.status();
     let text = resp.text().unwrap_or_default();

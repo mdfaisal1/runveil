@@ -1,0 +1,12 @@
+{
+    "packages": [
+        {
+            "name": "lodash",
+            "version": "4.17.19"
+        },
+        {
+            "name": "debug",
+            "version": "4.3.4"
+        }
+    ]
+}

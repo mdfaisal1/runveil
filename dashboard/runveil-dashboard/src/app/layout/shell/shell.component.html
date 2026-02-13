@@ -1,0 +1,50 @@
+<div class="min-h-screen bg-[#070B12] relative overflow-hidden">
+    <div
+        class="pointer-events-none absolute inset-0
+              bg-[radial-gradient(900px_circle_at_20%_0%,rgba(255,140,0,0.10),transparent_55%),radial-gradient(800px_circle_at_80%_10%,rgba(99,102,241,0.10),transparent_55%)]">
+    </div>
+    <div class="flex">
+
+        <!-- Sidebar -->
+        <aside class="w-64 border-r border-rv-border bg-rv-surface2">
+            <div class="px-5 py-5">
+                <div class="text-xs uppercase tracking-wider text-rv-muted">Runveil</div>
+                <div class="mt-1 text-lg font-semibold">Dashboard</div>
+            </div>
+
+            <nav class="px-3">
+                <a routerLink="/projects" routerLinkActive="bg-white/5 text-rv-text"
+                    class="block rounded-xl px-3 py-2 text-sm text-rv-muted hover:bg-white/5 hover:text-rv-text">
+                    Projects
+                </a>
+
+                <div class="mt-2 block rounded-xl px-3 py-2 text-sm text-rv-muted opacity-60">
+                    Settings (soon)
+                </div>
+            </nav>
+
+            <div class="px-5 py-5 mt-6 text-xs text-rv-muted">
+                Evidence-driven scanning
+            </div>
+        </aside>
+
+        <!-- Main -->
+        <main class="flex-1">
+            <!-- Topbar -->
+            <header class="border-b border-rv-border bg-rv-bg/60 backdrop-blur">
+                <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
+                    <div>
+                        <div class="text-sm text-rv-muted">Workspace</div>
+                        <div class="text-base font-semibold">Local Dev</div>
+                    </div>
+                </div>
+            </header>
+
+            <!-- Page content -->
+            <div class="mx-auto max-w-6xl px-6 py-8">
+                <router-outlet></router-outlet>
+            </div>
+        </main>
+
+    </div>
+</div>

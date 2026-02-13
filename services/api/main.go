@@ -7,6 +7,8 @@ import (
 	"os"
 	"time"
 
+	"runveil/pkg/infra"
+
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
 )
@@ -20,6 +22,7 @@ func mustEnv(key string) string {
 }
 
 func main() {
+	infra.MustLoad()
 	dsn := mustEnv("POSTGRES_URL") // e.g. postgres://Runveil:Runveil@localhost:5432/Runveil?sslmode=disable
 
 	db, err := sql.Open("pgx", dsn)
@@ -35,6 +38,7 @@ func main() {
 	registerIngest(r, db)
 	registerRuntime(r, db)
 	registerFindings(r, db)
+	registerProjects(r, db)
 
 	// GET /health → { ok: true } if DB is reachable
 	r.GET("/health", func(c *gin.Context) {

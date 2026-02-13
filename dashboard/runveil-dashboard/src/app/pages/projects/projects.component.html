@@ -1,0 +1,154 @@
+<!-- Header -->
+<!-- Ambient background glow -->
+    <div class="pointer-events-none absolute -inset-24 opacity-40 blur-3xl" style="
+      background:
+        radial-gradient(900px 500px at 20% 30%, rgba(249, 115, 22, 0.18), transparent 60%),
+        radial-gradient(800px 500px at 70% 40%, rgba(56, 189, 248, 0.14), transparent 60%),
+        radial-gradient(900px 600px at 50% 85%, rgba(168, 85, 247, 0.12), transparent 60%);
+    "></div>
+
+    <!-- Header row inside the page (keep if this is in your Projects page) -->
+    <div class="relative flex items-center justify-between gap-4">
+        <div>
+            <div class="text-sm text-slate-400">Projects</div>
+            <div class="mt-1 text-3xl font-semibold tracking-tight text-slate-50">
+                Your projects
+            </div>
+            <div class="mt-2 text-sm text-slate-400">
+                Click a project to view findings.
+            </div>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <div class="relative w-[420px] max-w-[45vw]">
+                <input type="text" placeholder="Search findings (soon)"
+                    class="w-full rounded-2xl border border-white/10 bg-slate-950/30 px-4 py-3 pr-20 text-sm text-slate-100 placeholder:text-slate-500 shadow-[0_0_0_1px_rgba(255,255,255,0.03)_inset] outline-none transition focus:border-orange-500/30 focus:shadow-[0_0_0_3px_rgba(249,115,22,0.14)]" />
+                <div
+                    class="pointer-events-none absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 text-xs text-slate-400">
+                    <span class="rounded-lg border border-white/10 bg-white/5 px-2 py-1">Ctrl</span>
+                    <span class="rounded-lg border border-white/10 bg-white/5 px-2 py-1">K</span>
+                </div>
+            </div>
+
+            <button type="button" (click)="openCreate()"
+                class="rounded-2xl bg-orange-500 px-5 py-3 text-sm font-semibold text-slate-950 shadow-[0_12px_40px_rgba(249,115,22,0.25)] transition hover:brightness-110 active:translate-y-[1px]">
+                New Project
+            </button>
+        </div>
+    </div>
+
+<!-- Loading / Error -->
+<div *ngIf="loading" class="mt-8 text-slate-300/70">Loading projects…</div>
+
+<div *ngIf="!loading && error" class="mt-6 rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+    {{ error }}
+</div>
+
+<!-- Grid -->
+<div *ngIf="!loading && !error" class="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
+    <article *ngFor="let p of projects; trackBy: trackBySlug" (click)="openProject(p.slug)"
+        (keydown.enter)="openProject(p.slug)" (keydown.space)="$event.preventDefault(); openProject(p.slug)"
+        tabindex="0" role="link"
+        class="group relative cursor-pointer overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02] p-6 shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset] transition hover:border-white/15 hover:bg-white/[0.03] focus:outline-none focus:ring-2 focus:ring-orange-400/20">
+        <!-- soft glow -->
+        <div class="pointer-events-none absolute -inset-24 opacity-0 blur-3xl transition duration-500 group-hover:opacity-100"
+            style="background: radial-gradient(circle at 30% 20%, rgba(249,115,22,0.20), transparent 60%),
+                         radial-gradient(circle at 70% 60%, rgba(59,130,246,0.14), transparent 55%);"></div>
+
+        <div class="relative">
+            <div class="flex items-start justify-between gap-6">
+                <div>
+                    <div class="text-xs uppercase tracking-[0.18em] text-slate-400/80">Slug</div>
+                    <div class="mt-2 text-xl font-semibold text-white">{{ p.slug }}</div>
+
+                    <div class="mt-6 text-xs uppercase tracking-[0.18em] text-slate-400/80">Name</div>
+                    <div class="mt-2 text-base text-slate-200">{{ p.name }}</div>
+                </div>
+
+                <div class="flex flex-col items-end gap-5">
+                    <!-- Open -->
+                    <a (click)="$event.stopPropagation()" [routerLink]="['/projects', p.slug]" title="Open project"
+                        class="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.03] px-4 py-2 text-sm text-slate-200 transition hover:border-white/15 hover:bg-white/[0.05]">
+                        Open <span class="opacity-70">→</span>
+                    </a>
+
+                    <div class="text-right">
+                        <div class="text-xs uppercase tracking-[0.18em] text-slate-400/80">Updated</div>
+                        <div class="mt-2 text-sm text-slate-300">
+                            {{ p.updated_at ? (p.updated_at | date : 'MMM dd, y') : '—' }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </article>
+</div>
+
+<!-- Create Modal -->
+<div *ngIf="showCreate" class="fixed inset-0 z-50 flex items-center justify-center p-6">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" (click)="closeCreate()"></div>
+
+    <div class="relative w-full max-w-xl overflow-hidden rounded-3xl border border-white/10 bg-slate-950/70 shadow-2xl">
+        <div class="pointer-events-none absolute -inset-24 opacity-100 blur-3xl" style="background: radial-gradient(circle at 25% 30%, rgba(249,115,22,0.18), transparent 55%),
+                         radial-gradient(circle at 70% 60%, rgba(59,130,246,0.12), transparent 55%);"></div>
+
+        <div class="relative p-6">
+            <div class="flex items-start justify-between gap-4">
+                <div>
+                    <div class="text-xs uppercase tracking-[0.18em] text-slate-400/80">Create</div>
+                    <div class="mt-2 text-2xl font-semibold text-white">New project</div>
+                    <div class="mt-1 text-slate-300/70">Add a project to track findings and runtime evidence.</div>
+                </div>
+
+                <button type="button"
+                    class="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.03] text-slate-200 transition hover:bg-white/[0.06]"
+                    (click)="closeCreate()" aria-label="Close">
+                    ✕
+                </button>
+            </div>
+
+            <form class="mt-6 space-y-5" [formGroup]="createForm" (ngSubmit)="createProject()">
+                <div>
+                    <label class="text-xs uppercase tracking-[0.18em] text-slate-400/80">Project name</label>
+                    <input
+                        class="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200 outline-none transition focus:border-orange-400/40 focus:ring-2 focus:ring-orange-400/10"
+                        formControlName="name" (input)="onNameInput()" placeholder="e.g. Billing Service" />
+                </div>
+
+                <div>
+                    <label class="text-xs uppercase tracking-[0.18em] text-slate-400/80">Slug</label>
+                    <input
+                        class="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200 outline-none transition focus:border-orange-400/40 focus:ring-2 focus:ring-orange-400/10"
+                        formControlName="slug" (input)="onSlugInput()" placeholder="e.g. billing-service" />
+                    <div class="mt-2 text-xs text-slate-300/60">Lowercase, numbers, and hyphens only.</div>
+                </div>
+
+                <div>
+                    <label class="text-xs uppercase tracking-[0.18em] text-slate-400/80">Repo URL (optional)</label>
+                    <input
+                        class="mt-2 w-full rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-sm text-slate-200 outline-none transition focus:border-orange-400/40 focus:ring-2 focus:ring-orange-400/10"
+                        formControlName="repoUrl" placeholder="e.g. https://github.com/org/repo" />
+                </div>
+
+                <div *ngIf="createError"
+                    class="rounded-2xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+                    {{ createError }}
+                </div>
+
+                <div class="mt-4 flex items-center justify-between">
+                    <button type="button"
+                        class="rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-3 text-sm font-semibold text-slate-200 transition hover:bg-white/[0.06]"
+                        (click)="closeCreate()">
+                        Cancel
+                    </button>
+
+                    <button type="submit"
+                        class="rounded-2xl bg-orange-500 px-6 py-3 text-sm font-semibold text-black shadow-[0_12px_30px_-12px_rgba(249,115,22,0.75)] transition hover:bg-orange-400 disabled:opacity-60"
+                        [disabled]="createForm.invalid">
+                        Create project
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>

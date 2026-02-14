@@ -46,8 +46,9 @@
 
 <!-- Grid -->
 <div *ngIf="!loading && !error" class="mt-8 grid grid-cols-1 gap-6 md:grid-cols-2">
-    <a *ngFor="let p of projects; trackBy: trackBySlug" [routerLink]="['/projects', p.slug]"
+    <a *ngFor="let p of projects; trackBy: trackBySlug" [routerLink]="['/projects', p.slug, 'findings']"
         class="group relative block cursor-pointer overflow-hidden rounded-2xl border border-white/10 bg-white/[0.02] p-6 shadow-[0_1px_0_0_rgba(255,255,255,0.03)_inset] transition hover:border-white/15 hover:bg-white/[0.05] focus:outline-none focus:ring-2 focus:ring-orange-400/20">
+
 
         <!-- soft glow -->
         <div class="pointer-events-none absolute -inset-24 opacity-0 blur-3xl transition duration-500 group-hover:opacity-100"
@@ -64,20 +65,21 @@
                     <div class="mt-2 text-base text-slate-200">{{ p.name }}</div>
                 </div>
 
-                <div class="flex flex-col items-end gap-5">
-                    <!-- Open -->
-                    <span
-                        class="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-slate-200 transition hover:border-white/15 hover:bg-white/[0.05]">
-                        Open <span class="opacity-70">→</span>
-                    </span>
+                <div class="flex flex-col items-end gap-3">
+                    <!-- Secondary: Project Overview -->
+                    <a class="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-slate-200 transition hover:border-white/15 hover:bg-white/[0.05]"
+                        [routerLink]="['/projects', p.slug]" (click)="$event.stopPropagation()">
+                        Details <span class="opacity-70">→</span>
+                    </a>
 
-                    <div class="text-right">
+                    <div class="pt-2 text-right">
                         <div class="text-xs uppercase tracking-[0.18em] text-slate-400/80">Updated</div>
                         <div class="mt-2 text-sm text-slate-300">
                             {{ p.updated_at ? (p.updated_at | date : 'MMM dd, y') : '—' }}
                         </div>
                     </div>
                 </div>
+
             </div>
         </div>
     </a>

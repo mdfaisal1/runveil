@@ -1,1 +1,147 @@
-<p>project-detail works!</p>
+<div class="mx-auto max-w-6xl px-6 py-8">
+    <!-- Header -->
+    <div class="flex items-start justify-between gap-6">
+        <div>
+            <div class="text-xs uppercase tracking-widest text-slate-400">Project</div>
+            <h1 class="mt-2 text-3xl font-semibold text-slate-100">{{ slug }}</h1>
+            <p class="mt-2 text-sm text-slate-400">Project overview and actions.</p>
+        </div>
+
+        <div class="flex items-center gap-3">
+            <a class="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm text-slate-200 transition hover:border-white/15 hover:bg-white/[0.05]"
+                [routerLink]="['/projects']">
+                ← Back
+            </a>
+
+            <a class="rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2 text-sm font-medium text-orange-200 transition hover:border-orange-500/40 hover:bg-orange-500/15"
+                [routerLink]="['/projects', slug, 'findings']">
+                View Findings →
+            </a>
+        </div>
+    </div>
+
+    <!-- Overview cards -->
+    <div class="mt-8 grid gap-4 md:grid-cols-3">
+        <div class="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+            <div class="text-xs uppercase tracking-widest text-slate-400">Status</div>
+            <div class="mt-2 text-lg font-medium text-slate-100">Connected</div>
+            <div class="mt-1 text-sm text-slate-400">API reachable via proxy.</div>
+        </div>
+
+        <div class="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+            <div class="text-xs uppercase tracking-widest text-slate-400">Next</div>
+            <div class="mt-2 text-lg font-medium text-slate-100">Scans</div>
+            <div class="mt-1 text-sm text-slate-400">
+                Trigger ingest and observe runtime (now wired).
+            </div>
+        </div>
+
+        <div class="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+            <div class="text-xs uppercase tracking-widest text-slate-400">Navigation</div>
+            <div class="mt-2 text-lg font-medium text-slate-100">Findings</div>
+            <div class="mt-1 text-sm text-slate-400">
+                Detailed vulnerability list and evidence.
+            </div>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            <div>
+                <div class="text-xs uppercase tracking-widest text-slate-400">Actions</div>
+                <div class="mt-1 text-sm text-slate-300">
+                    Ingest a scan or push a runtime observation for this project.
+                </div>
+            </div>
+
+            <div class="flex items-center gap-3">
+                <button type="button"
+                    class="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm text-slate-200 transition hover:border-white/15 hover:bg-white/[0.05]"
+                    (click)="openIngest()">
+                    Ingest Scan
+                </button>
+
+                <button type="button"
+                    class="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm text-slate-200 transition hover:border-white/15 hover:bg-white/[0.05]"
+                    (click)="openObserve()">
+                    Observe Runtime
+                </button>
+            </div>
+        </div>
+
+        <div *ngIf="toast" class="mt-4 rounded-xl border border-white/10 bg-white/[0.02] p-3 text-sm text-slate-200">
+            {{ toast }}
+        </div>
+    </div>
+</div>
+
+<!-- Modal -->
+<div *ngIf="modalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/60 backdrop-blur-sm" (click)="closeModal()"></div>
+
+    <div
+        class="relative w-full max-w-3xl overflow-hidden rounded-2xl border border-white/10 bg-[#0b1220]/95 shadow-2xl">
+        <div class="flex items-center justify-between border-b border-white/10 px-6 py-4">
+            <div>
+                <div class="text-xs uppercase tracking-widest text-slate-400">Action</div>
+                <div class="mt-1 text-lg font-semibold text-slate-100">
+                    {{ mode === 'ingest' ? 'Ingest Scan' : 'Observe Runtime' }}
+                </div>
+            </div>
+
+            <button type="button"
+                class="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-slate-200 transition hover:border-white/15 hover:bg-white/[0.05]"
+                (click)="closeModal()" [disabled]="busy">
+                Close
+            </button>
+        </div>
+
+        <div class="px-6 py-5">
+            <div class="text-sm text-slate-300">
+                <ng-container *ngIf="mode === 'ingest'; else observeHelp">
+                    Paste JSON for ingest. Supported:
+                    <span class="text-slate-200">&#123;"source":"cli","report":&#123;...&#125;&#125;</span>
+                    or structured packages.
+                </ng-container>
+
+                <ng-template #observeHelp>
+                    Requires header <span class="text-slate-200">X-Runveil-Token</span> matching the project’s
+                    runtime_token.
+                </ng-template>
+            </div>
+
+            <div *ngIf="mode === 'observe'" class="mt-4">
+                <label class="text-xs uppercase tracking-widest text-slate-400">X-Runveil-Token</label>
+                <input
+                    class="mt-2 w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm text-slate-100 outline-none focus:border-orange-500/40"
+                    placeholder="paste runtime_token UUID here" [(ngModel)]="runtimeToken" />
+            </div>
+
+            <div class="mt-4">
+                <label class="text-xs uppercase tracking-widest text-slate-400">Payload JSON</label>
+                <textarea
+                    class="mt-2 h-64 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.02] p-4 font-mono text-xs text-slate-100 outline-none focus:border-orange-500/40"
+                    [(ngModel)]="payloadText"></textarea>
+            </div>
+
+            <div *ngIf="error" class="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-200">
+                {{ error }}
+            </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-3 border-t border-white/10 px-6 py-4">
+            <button type="button"
+                class="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm text-slate-200 transition hover:border-white/15 hover:bg-white/[0.05]"
+                (click)="closeModal()" [disabled]="busy">
+                Cancel
+            </button>
+
+            <button type="button"
+                class="rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2 text-sm font-medium text-orange-200 transition hover:border-orange-500/40 hover:bg-orange-500/15 disabled:opacity-50"
+                (click)="submit()" [disabled]="busy">
+                {{ busy ? 'Sending…' : 'Send' }}
+            </button>
+        </div>
+    </div>
+</div>

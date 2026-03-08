@@ -1,8 +1,7 @@
 module runveil/pkg
 
-go 1.23.0
+go 1.25.3
 
-toolchain go1.24.9
 
 require (
 	github.com/caarlos0/env/v11 v11.3.1

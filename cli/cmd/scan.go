@@ -225,17 +225,11 @@ var scanCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(scanCmd)
-
 	// Existing flags
 	scanCmd.Flags().BoolVar(&flagPost, "post", false, "Send the generated report to Runveil API")
 	scanCmd.Flags().StringVar(&flagProject, "project", "", "Project slug (required with --post)")
-
-	// Formatting
 	scanCmd.Flags().StringVar(&flagFormat, "format", "json", "Report format: json|md")
 	scanCmd.Flags().StringVar(&flagOutPath, "out", "", "Write report to this file (otherwise stdout)")
-
-	// CI gating
 	scanCmd.Flags().StringVar(&flagFailOn, "fail-on", "none", "Fail build if max severity meets/exceeds this level: none|low|medium|high|critical")
 }
 

@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"runveil/pkg/infra"
 	"strings"
 	"time"
 
@@ -33,12 +34,7 @@ type findingsResponse struct {
 }
 
 func fetchFindings(projectSlug string) (*findingsResponse, error) {
-	apiURL := os.Getenv("RUNVEIL_API_URL")
-	if apiURL == "" {
-		apiURL = "http://localhost:8080"
-	}
-
-	apiURL = strings.TrimRight(apiURL, "/")
+	apiURL := infra.APIBaseURL()
 	url := fmt.Sprintf("%s/v1/projects/%s/findings", apiURL, projectSlug)
 
 	resp, err := http.Get(url)

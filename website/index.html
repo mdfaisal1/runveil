@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <!-- Mark JS as available ASAP so reveal-hidden content only applies when JS can un-hide it -->
+  <script>document.documentElement.className += ' js';</script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Runveil — Security that sees what actually runs</title>
+  <meta name="description" content="Runveil is runtime-native vulnerability intelligence. It maps what your application actually runs, flags only reachable risk, and cuts npm audit noise from hundreds of CVEs down to the short list that matters." />
+
+  <!-- Open Graph -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Runveil — Security that sees what actually runs" />
+  <meta property="og:description" content="Runtime-native vulnerability intelligence. Flags only reachable risk, so developers ship fast without drowning in false positives." />
+  <meta property="og:url" content="https://runveil.com" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="theme-color" content="#070b14" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet" />
+
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Animated background canvas: dependency graph where only reachable nodes light up -->
+  <canvas id="graph-canvas" aria-hidden="true"></canvas>
+  <div class="bg-grid" aria-hidden="true"></div>
+  <div class="bg-glow" aria-hidden="true"></div>
+
+  <!-- ============ NAV ============ -->
+  <header class="nav" id="nav">
+    <div class="container nav-inner">
+      <a class="brand" href="#top" aria-label="Runveil home">
+        <span class="brand-mark"></span>
+        <span class="brand-name">RUNVEIL</span>
+      </a>
+      <nav class="nav-links" aria-label="Primary">
+        <a href="#wedge">The problem</a>
+        <a href="#how">How it works</a>
+        <a href="#features">Features</a>
+        <a href="#install">Get started</a>
+      </nav>
+      <div class="nav-cta">
+        <a class="btn btn-ghost" href="https://github.com/mdfaisal1/runveil" target="_blank" rel="noopener">
+          <svg class="icon" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.5 18.3 4.8 18.3 4.8c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .4.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5Z"/></svg>
+          <span id="star-count-nav">Star</span>
+        </a>
+      </div>
+      <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu">☰</button>
+    </div>
+  </header>
+
+  <main id="top">
+    <!-- ============ HERO ============ -->
+    <section class="hero">
+      <div class="container hero-inner">
+        <div class="pill reveal" data-reveal>
+          <span class="pill-dot"></span>
+          RUNTIME-NATIVE VULNERABILITY INTELLIGENCE
+        </div>
+        <h1 class="hero-title reveal" data-reveal>
+          Security that sees<br /><span class="grad-text">what actually runs.</span>
+        </h1>
+        <p class="hero-sub reveal" data-reveal>
+          Runveil maps your real runtime, flags <strong>only reachable risk</strong>, and
+          generates fixes that fit your stack — so your developers ship fast without
+          drowning in false positives.
+        </p>
+        <div class="hero-actions reveal" data-reveal>
+          <a class="btn btn-primary" href="https://github.com/mdfaisal1/runveil" target="_blank" rel="noopener">
+            <svg class="icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.5 18.3 4.8 18.3 4.8c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .4.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5Z"/></svg>
+            <span id="star-count-hero">Star on GitHub</span>
+          </a>
+          <a class="btn btn-secondary" href="#wedge">See how it works →</a>
+        </div>
+        <p class="hero-foot reveal" data-reveal>
+          Open-source CLI · Node.js first · Early access:
+          <a href="mailto:founder@runveil.com">founder@runveil.com</a>
+        </p>
+      </div>
+      <div class="scroll-hint" aria-hidden="true">
+        <span>Scroll to discover</span>
+        <span class="scroll-arrow">↓</span>
+      </div>
+    </section>
+
+    <!-- ============ THE WEDGE: before / after ============ -->
+    <section class="wedge" id="wedge">
+      <div class="container">
+        <p class="eyebrow reveal" data-reveal>The problem</p>
+        <h2 class="section-title reveal" data-reveal>
+          Most scanners drown you in noise.
+        </h2>
+        <p class="section-lead reveal" data-reveal>
+          The large majority of flagged CVEs sit in code paths your app never actually
+          runs. So you either chase ghosts — or learn to ignore the scanner entirely.
+          Runveil shows you only what's <em>reachable</em>.
+        </p>
+
+        <div class="compare reveal" data-reveal>
+          <div class="compare-card compare-before">
+            <div class="compare-head">
+              <span class="compare-tool">npm audit</span>
+              <span class="compare-tag tag-bad">all theoretical</span>
+            </div>
+            <div class="compare-num" data-count="187" data-suffix="">0</div>
+            <div class="compare-label">issues flagged</div>
+            <div class="compare-bar"><span class="bar-fill bar-bad" style="--w:100%"></span></div>
+          </div>
+
+          <div class="compare-arrow" aria-hidden="true">
+            <span class="arrow-line"></span>
+            <span class="arrow-head">→</span>
+          </div>
+
+          <div class="compare-card compare-after">
+            <div class="compare-head">
+              <span class="compare-tool">Runveil</span>
+              <span class="compare-tag tag-good">reachable only</span>
+            </div>
+            <div class="compare-num grad-text" data-count="6" data-suffix="">0</div>
+            <div class="compare-label">reachable issues</div>
+            <div class="compare-bar"><span class="bar-fill bar-good" style="--w:8%"></span></div>
+          </div>
+        </div>
+        <p class="compare-caption reveal" data-reveal>
+          <strong>97% less noise.</strong> Same vulnerability data — radically shorter list.
+        </p>
+      </div>
+    </section>
+
+    <!-- ============ TERMINAL ============ -->
+    <section class="terminal-section">
+      <div class="container">
+        <p class="eyebrow reveal" data-reveal>Show, don't pitch</p>
+        <h2 class="section-title reveal" data-reveal>One command. The short list that matters.</h2>
+
+        <div class="terminal reveal" data-reveal id="terminal">
+          <div class="terminal-bar">
+            <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+            <span class="terminal-title">~/projects/checkout-api — rv scan</span>
+          </div>
+          <pre class="terminal-body" id="terminal-body"></pre>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ HOW IT WORKS ============ -->
+    <section class="how" id="how">
+      <div class="container">
+        <p class="eyebrow reveal" data-reveal>How it works</p>
+        <h2 class="section-title reveal" data-reveal>From a wall of CVEs to a ranked short list.</h2>
+
+        <div class="steps">
+          <div class="step reveal" data-reveal>
+            <div class="step-num">01</div>
+            <h3>Scan dependencies</h3>
+            <p>Runveil reads your <code>package-lock.json</code> and matches every package against the OSV vulnerability database.</p>
+          </div>
+          <div class="step reveal" data-reveal>
+            <div class="step-num">02</div>
+            <h3>Map reachability</h3>
+            <p>It builds your dependency &amp; call graph to determine which vulnerable code is actually on a path your app can execute.</p>
+          </div>
+          <div class="step reveal" data-reveal>
+            <div class="step-num">03</div>
+            <h3>Confirm with runtime</h3>
+            <p>A lightweight Rust agent reports what executes in the real environment, marking findings <code>reachable = true</code> with live evidence.</p>
+          </div>
+          <div class="step reveal" data-reveal>
+            <div class="step-num">04</div>
+            <h3>Prioritize &amp; fix</h3>
+            <p>Reachable issues rise to the top with evidence and suggested fixes. Dormant noise drops away. Gate CI on what matters.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ FEATURES ============ -->
+    <section class="features" id="features">
+      <div class="container">
+        <p class="eyebrow reveal" data-reveal>Capabilities</p>
+        <h2 class="section-title reveal" data-reveal>Built for developers who ship.</h2>
+
+        <div class="feature-grid">
+          <div class="feature-card reveal" data-reveal>
+            <div class="feature-icon">◎</div>
+            <h3>Reachability analysis</h3>
+            <p>Static reachability through the dependency and call graph — the incumbents gate this behind enterprise sales. Runveil keeps it open.</p>
+          </div>
+          <div class="feature-card reveal" data-reveal>
+            <div class="feature-icon">⚡</div>
+            <h3>Runtime evidence</h3>
+            <p>A Rust agent observes real execution and confirms which vulnerabilities are truly exercised — not just theoretically present.</p>
+          </div>
+          <div class="feature-card reveal" data-reveal>
+            <div class="feature-icon">⛬</div>
+            <h3>CI policy gating</h3>
+            <p><code>--fail-on critical|high|medium|low</code> with non-zero exit codes. Drop the GitHub Action in and block only reachable risk.</p>
+          </div>
+          <div class="feature-card reveal" data-reveal>
+            <div class="feature-icon">▤</div>
+            <h3>Clean reports</h3>
+            <p>JSON for tooling, Markdown for humans. Every report leads with the headline: X reachable of Y total.</p>
+          </div>
+          <div class="feature-card reveal" data-reveal>
+            <div class="feature-icon">◷</div>
+            <h3>Evidence timeline</h3>
+            <p>See where and when a vulnerability was observed at runtime — file, function, environment, and last-seen time.</p>
+          </div>
+          <div class="feature-card reveal" data-reveal>
+            <div class="feature-icon">⌘</div>
+            <h3>Open-source first</h3>
+            <p>The free CLI is the product. Scan, reach, gate, and run it locally — forever free. Monetize the team, never the developer.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ INSTALL / CTA ============ -->
+    <section class="install" id="install">
+      <div class="container install-inner">
+        <h2 class="section-title reveal" data-reveal>See what your app actually runs.</h2>
+        <p class="section-lead reveal" data-reveal>
+          Runveil is open-source and Node.js-first. Star the repo, try the CLI, and
+          tell us what it found.
+        </p>
+
+        <div class="install-cmd reveal" data-reveal>
+          <code id="install-text"><span class="cmd-prompt">$</span> go install github.com/mdfaisal1/runveil/cli@latest</code>
+          <button class="copy-btn" id="copy-btn" aria-label="Copy install command">Copy</button>
+        </div>
+
+        <div class="install-actions reveal" data-reveal>
+          <a class="btn btn-primary" href="https://github.com/mdfaisal1/runveil" target="_blank" rel="noopener">
+            <svg class="icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path fill="currentColor" d="M12 .5C5.7.5.5 5.7.5 12c0 5.1 3.3 9.4 7.9 10.9.6.1.8-.2.8-.6v-2c-3.2.7-3.9-1.5-3.9-1.5-.5-1.3-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1 1.8 2.7 1.3 3.4 1 .1-.8.4-1.3.7-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.3 1.2a11.5 11.5 0 0 1 6 0C17.3 4.5 18.3 4.8 18.3 4.8c.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.5-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .4.2.7.8.6 4.6-1.5 7.9-5.8 7.9-10.9C23.5 5.7 18.3.5 12 .5Z"/></svg>
+            <span id="star-count-cta">Star on GitHub</span>
+          </a>
+          <a class="btn btn-secondary" href="mailto:founder@runveil.com">Request early access</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ============ FOOTER ============ -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div class="footer-brand">
+        <span class="brand-mark"></span>
+        <div>
+          <div class="brand-name">RUNVEIL</div>
+          <p class="footer-tagline">Runtime-native vulnerability intelligence.</p>
+        </div>
+      </div>
+      <div class="footer-links">
+        <a href="https://github.com/mdfaisal1/runveil" target="_blank" rel="noopener">GitHub</a>
+        <a href="#how">How it works</a>
+        <a href="#features">Features</a>
+        <a href="mailto:founder@runveil.com">Contact</a>
+      </div>
+    </div>
+    <div class="container footer-bottom">
+      <span>© <span id="year"></span> Runveil. Security that sees what actually runs.</span>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

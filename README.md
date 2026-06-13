@@ -28,18 +28,22 @@ actually affects production.
 
 ## What a scan looks like
 
-```console
-$ rv scan ./package-lock.json
-🔎 Scanning 1284 packages from: ./package-lock.json
-  🚨 cross-spawn@7.0.3 — 1 vuln(s)
-     • CVE-2024-21538 — Regular Expression Denial of Service (ReDoS) in cross-spawn
-  🚨 axios@1.6.0 — 1 vuln(s)
-     • CVE-2023-45857 — Server-Side Request Forgery in axios
-  💤 webpack-dev-server@4.15.1 — 2 vuln(s) (dormant)
-  💤 terser@5.16.0 — 1 vuln(s) (dormant)
-  ...
+![Runveil scanning a real Angular project: 3 reachable of 297, 98% noise reduced](website/demo.gif)
 
-📊 6 reachable of 187 total  ·  181 dormant (dev-only) hidden  ·  96% noise reduced
+A real run against this repo's Angular dashboard — **1084 packages, 297 vulnerability
+findings, 3 reachable** (the rest dormant dev-only tooling that never ships):
+
+```console
+$ rv scan ./package-lock.json --fail-on high
+🔎 Scanning 1084 packages from: ./package-lock.json
+! 297 vulnerabilities found across dependencies
+REACHABLE FINDINGS (3 of 297)
+  * @angular/compiler  HIGH  XSS in i18n attribute bindings
+  * @angular/core      HIGH  XSS in i18n attribute bindings
+  * @angular/core      HIGH  i18n Cross-Site Scripting
+
+📊 3 reachable of 297 total  ·  294 dormant (dev-only) hidden  ·  98% noise reduced
+⛔ policy: max reachable severity HIGH ≥ high → exit 3
 ```
 
 > **How "reachable" is decided.** Runveil v1 uses static reachability from the

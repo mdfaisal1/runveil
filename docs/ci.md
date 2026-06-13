@@ -25,7 +25,7 @@ jobs:
       - name: Install Runveil
         run: |
           git clone --depth 1 https://github.com/mdfaisal1/runveil /tmp/runveil
-          (cd /tmp/runveil && go build -o "$RUNNER_TEMP/runveil" ./cli)
+          (cd /tmp/runveil && go build -o "$RUNNER_TEMP/runveil" ./cmd/runveil)
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
       - name: Scan
         run: runveil scan package-lock.json --fail-on high
@@ -38,7 +38,7 @@ runveil-scan:
   image: golang:1.25
   script:
     - git clone --depth 1 https://github.com/mdfaisal1/runveil /tmp/runveil
-    - (cd /tmp/runveil && go build -o /usr/local/bin/runveil ./cli)
+    - (cd /tmp/runveil && go build -o /usr/local/bin/runveil ./cmd/runveil)
     - runveil scan package-lock.json --fail-on high
 ```
 
@@ -51,7 +51,7 @@ pipeline {
     stage('Runveil scan') {
       steps {
         sh 'git clone --depth 1 https://github.com/mdfaisal1/runveil /tmp/runveil'
-        sh 'cd /tmp/runveil && go build -o /usr/local/bin/runveil ./cli'
+        sh 'cd /tmp/runveil && go build -o /usr/local/bin/runveil ./cmd/runveil'
         sh 'runveil scan package-lock.json --fail-on high'
       }
     }
@@ -63,7 +63,7 @@ pipeline {
 
 ```bash
 git clone --depth 1 https://github.com/mdfaisal1/runveil /tmp/runveil
-(cd /tmp/runveil && go build -o /usr/local/bin/runveil ./cli)
+(cd /tmp/runveil && go build -o /usr/local/bin/runveil ./cmd/runveil)
 runveil scan package-lock.json --fail-on high   # exit 3 on reachable >= high
 ```
 

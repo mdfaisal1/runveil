@@ -24,7 +24,7 @@ jobs:
       - name: Install Runveil
         run: |
           git clone --depth 1 https://github.com/mdfaisal1/runveil /tmp/runveil
-          (cd /tmp/runveil && go build -o "$RUNNER_TEMP/runveil" ./cli)
+          (cd /tmp/runveil && go build -o "$RUNNER_TEMP/runveil" ./cmd/runveil)
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
       - name: Scan (fail only on reachable HIGH or CRITICAL)

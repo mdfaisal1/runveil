@@ -57,7 +57,7 @@ Runveil is a Go program. Until pre-built binaries ship, build from source:
 ```bash
 git clone https://github.com/mdfaisal1/runveil.git
 cd runveil
-go build -o runveil ./cli
+go build -o runveil ./cmd/runveil
 ```
 
 Put the binary on your `PATH` (optionally alias it to `rv`):
@@ -74,7 +74,7 @@ runveil --help
 <summary>Windows (PowerShell)</summary>
 
 ```powershell
-go build -o runveil.exe ./cli
+go build -o runveil.exe ./cmd/runveil
 # move runveil.exe somewhere on your PATH, e.g. C:\tools\runveil\
 ```
 </details>

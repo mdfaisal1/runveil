@@ -7,10 +7,9 @@ import (
 	"os"
 	"time"
 
-	"runveil/pkg/infra"
-
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/mdfaisal1/runveil/pkg/infra"
 )
 
 func mustEnv(key string) string {

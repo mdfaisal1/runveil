@@ -12,7 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"runveil/pkg/infra"
+	"github.com/mdfaisal1/runveil/pkg/infra"
 )
 
 /********** report model **********/

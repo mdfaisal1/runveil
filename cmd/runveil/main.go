@@ -1,7 +1,6 @@
-// cli/main.go
 package main
 
-import "runveil/cli/cmd"
+import "github.com/mdfaisal1/runveil/cli/cmd"
 
 func main() {
 	cmd.Execute()

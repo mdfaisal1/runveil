@@ -6,8 +6,7 @@ import (
 	"os"
 	"time"
 
-	"runveil/pkg/infra"
-
+	"github.com/mdfaisal1/runveil/pkg/infra"
 	"github.com/spf13/cobra"
 )
 

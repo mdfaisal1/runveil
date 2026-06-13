@@ -7,11 +7,11 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/mdfaisal1/runveil/pkg/infra"
+
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/pressly/goose/v3"
 	"github.com/spf13/cobra"
-
-	"runveil/pkg/infra"
 )
 
 func NewMigrateCmd() *cobra.Command {

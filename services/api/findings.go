@@ -19,6 +19,8 @@ type FindingView struct {
 	Summary       string     `json:"summary"`
 	Severity      string     `json:"severity"`
 	Reachable     bool       `json:"reachable"`
+	IsDev         bool       `json:"is_dev"`    // dev-only dependency (why it's dormant)
+	IsDirect      bool       `json:"is_direct"` // direct dependency of the project
 	EvidenceCount int64      `json:"evidence_count"`
 	LastSeenAt    *time.Time `json:"last_seen_at,omitempty"`
 	RuntimeState  string     `json:"runtime_state"`
@@ -57,6 +59,8 @@ SELECT
     v.summary,
     v.severity,
     f.reachable,
+    f.is_dev,
+    f.is_direct,
     f.evidence_count,
     f.last_seen_at
 FROM findings f
@@ -85,9 +89,18 @@ WHERE proj.slug = $1
 		}
 
 		// --- 4) ORDER BY ---
+		// Reachable first, then by real severity rank (severity is stored as text,
+		// so map it), then package name — mirrors the CLI's "short list first".
 		query += `
 ORDER BY
-    v.severity DESC,
+    f.reachable DESC,
+    CASE upper(v.severity)
+        WHEN 'CRITICAL' THEN 4
+        WHEN 'HIGH'     THEN 3
+        WHEN 'MEDIUM'   THEN 2
+        WHEN 'LOW'      THEN 1
+        ELSE 0
+    END DESC,
     p.name ASC
 `
 
@@ -116,6 +129,8 @@ ORDER BY
 				&v.Summary,
 				&v.Severity,
 				&v.Reachable,
+				&v.IsDev,
+				&v.IsDirect,
 				&v.EvidenceCount,
 				&v.LastSeenAt,
 			); err != nil {

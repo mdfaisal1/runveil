@@ -10,6 +10,8 @@ export type FindingView = {
     summary: string;
     severity: string;
     reachable: boolean;
+    is_dev?: boolean; // dev-only dependency (why a finding is dormant)
+    is_direct?: boolean; // direct dependency of the project
     evidence_count: number;
     last_seen_at?: string | null;
     runtime_state?: string; // backend sends this in your code

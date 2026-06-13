@@ -35,7 +35,9 @@ type IngestFinding struct {
 	Summary       string `json:"summary,omitempty"`
 	Severity      string `json:"severity,omitempty"` // LOW|MEDIUM|HIGH|CRITICAL (normalized)
 	FixedVersion  string `json:"fixed_version,omitempty"`
-	Reachable     bool   `json:"reachable"` // set later by agent; allow provided for demo
+	Reachable     bool   `json:"reachable"` // static reachability from the scan (production dep)
+	Dev           bool   `json:"dev"`       // dev-only dependency (dormant)
+	Direct        bool   `json:"direct"`    // listed directly in the project's dependencies
 	IntroducedVia string `json:"introduced_via,omitempty"`
 }
 
@@ -54,6 +56,9 @@ type rawScanFinding struct {
 	VulnID    string `json:"vuln_id"`
 	Summary   string `json:"summary"`
 	Severity  string `json:"severity"`
+	Reachable bool   `json:"reachable"`
+	Dev       bool   `json:"dev"`
+	Direct    bool   `json:"direct"`
 }
 
 type IngestResponse struct {
@@ -115,11 +120,14 @@ func derivePackagesFromReport(raw json.RawMessage) []IngestPkg {
 		sev := strings.ToUpper(f.Severity)
 
 		pkg.Vulns = append(pkg.Vulns, IngestFinding{
-			Source:   "osv", // we currently scan via OSV
-			VulnID:   f.VulnID,
-			Summary:  f.Summary,
-			Severity: sev,
-			// Reachable, FixedVersion, IntroducedVia left as zero values
+			Source:    "osv", // we currently scan via OSV
+			VulnID:    f.VulnID,
+			Summary:   f.Summary,
+			Severity:  sev,
+			Reachable: f.Reachable, // static reachability computed by the scanner
+			Dev:       f.Dev,
+			Direct:    f.Direct,
+			// FixedVersion, IntroducedVia left as zero values
 		})
 	}
 
@@ -271,14 +279,16 @@ func ingest(ctx context.Context, db *sql.DB, slug string, req *IngestRequest, ra
 			vulnUpserts++
 
 			if _, err := tx.ExecContext(ctx, `
-				INSERT INTO findings (package_id, vulnerability_id, reachable, fixed_version, introduced_via)
-				VALUES ($1, $2, $3, $4, $5)
+				INSERT INTO findings (package_id, vulnerability_id, reachable, is_dev, is_direct, fixed_version, introduced_via)
+				VALUES ($1, $2, $3, $4, $5, $6, $7)
 				ON CONFLICT (package_id, vulnerability_id)
-				DO UPDATE SET reachable = EXCLUDED.reachable,
+				DO UPDATE SET reachable = findings.reachable OR EXCLUDED.reachable,
+				              is_dev = EXCLUDED.is_dev,
+				              is_direct = EXCLUDED.is_direct,
 				              fixed_version = EXCLUDED.fixed_version,
 				              introduced_via = EXCLUDED.introduced_via,
 				              updated_at = now()
-			`, pkgID, vulnID, v.Reachable, v.FixedVersion, v.IntroducedVia); err != nil {
+			`, pkgID, vulnID, v.Reachable, v.Dev, v.Direct, v.FixedVersion, v.IntroducedVia); err != nil {
 				return nil, err
 			}
 			findings++

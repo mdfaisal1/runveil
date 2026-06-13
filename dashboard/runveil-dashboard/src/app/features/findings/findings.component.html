@@ -177,9 +177,14 @@
 
                         <td class="px-5 py-4">
                             <span class="inline-flex items-center gap-2 rounded-xl border px-3 py-1 text-xs"
-                                [ngClass]="runtimeBadgeClass(f.reachable)">
+                                [ngClass]="runtimeBadgeClass(f.reachable)"
+                                [title]="f.reachable
+                                    ? 'Reachable: part of the production dependency tree'
+                                    : (f.is_dev ? 'Dormant: dev-only dependency, not shipped to production' : 'Dormant: not on an executed code path')">
                                 {{ f.reachable ? 'Reachable' : 'Dormant' }}
                             </span>
+                            <span *ngIf="!f.reachable && f.is_dev"
+                                class="ml-1 text-[10px] uppercase tracking-wide text-slate-500">dev-only</span>
                         </td>
 
                         <td class="px-5 py-4">

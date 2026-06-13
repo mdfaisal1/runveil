@@ -157,7 +157,7 @@ var scanCmd = &cobra.Command{
 				if len(s) > 110 {
 					s = s[:110] + "…"
 				}
-				sev := mapCVSS(v.Severity)
+				sev := severityOf(v)
 				if sevRank(sev) > sevRank(maxSeen) {
 					maxSeen = sev
 				}
@@ -465,29 +465,41 @@ func shouldFail(maxSeen, threshold severity) bool {
 	return sevRank(maxSeen) >= sevRank(threshold)
 }
 
-func mapCVSS(sevs []struct {
-	Type  string `json:"type"`
-	Score string `json:"score"`
-}) severity {
-	max := 0.0
-	for _, s := range sevs {
-		var v float64
-		fmt.Sscanf(s.Score, "%f", &v)
-		if v > max {
-			max = v
-		}
-	}
-	switch {
-	case max >= 9.0:
+// severityOf resolves a finding's severity, preferring the source's qualitative
+// rating (GitHub/GHSA, which dominates the npm ecosystem) and falling back to a
+// computed CVSS v3 base score. OSV puts a CVSS *vector* (not a number) in the
+// severity score field, so the qualitative rating is both simpler and what users
+// see in `npm audit` / GitHub.
+func severityOf(v infra.OSVVuln) severity {
+	switch strings.ToUpper(strings.TrimSpace(v.DatabaseSpecific.Severity)) {
+	case "CRITICAL":
 		return severityCritical
-	case max >= 7.0:
+	case "HIGH":
 		return severityHigh
-	case max >= 4.0:
+	case "MODERATE", "MEDIUM":
 		return severityMedium
-	case max > 0:
+	case "LOW":
+		return severityLow
+	}
+	if score, ok := infra.CVSSBaseScore(v.Severity); ok {
+		return sevFromScore(score)
+	}
+	return severityLow // a real vuln with no severity data — conservative floor
+}
+
+// sevFromScore maps a CVSS base score to a qualitative severity (CVSS v3.1 bands).
+func sevFromScore(score float64) severity {
+	switch {
+	case score >= 9.0:
+		return severityCritical
+	case score >= 7.0:
+		return severityHigh
+	case score >= 4.0:
+		return severityMedium
+	case score > 0:
 		return severityLow
 	default:
-		return severityLow
+		return severityNone
 	}
 }
 

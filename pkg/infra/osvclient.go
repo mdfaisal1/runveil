@@ -15,13 +15,21 @@ import (
 
 // ---------- public types used by scan.go ----------
 
+type OSVSeverity struct {
+	Type  string `json:"type"`  // e.g. "CVSS_V3", "CVSS_V4"
+	Score string `json:"score"` // a CVSS vector string, e.g. "CVSS:3.1/AV:N/AC:L/..."
+}
+
 type OSVVuln struct {
-	ID       string `json:"id"`
-	Summary  string `json:"summary"`
-	Severity []struct {
-		Type  string `json:"type"`  // e.g. "CVSS_V3"
-		Score string `json:"score"` // numeric string as string, e.g. "7.5"
-	} `json:"severity"`
+	ID       string        `json:"id"`
+	Summary  string        `json:"summary"`
+	Severity []OSVSeverity `json:"severity"`
+	// DatabaseSpecific carries the source's qualitative rating. For GitHub-reviewed
+	// (GHSA) advisories — which dominate the npm ecosystem — Severity is one of
+	// LOW | MODERATE | HIGH | CRITICAL. This is what GitHub and `npm audit` display.
+	DatabaseSpecific struct {
+		Severity string `json:"severity"`
+	} `json:"database_specific"`
 }
 
 type OSVQueryResponse struct {

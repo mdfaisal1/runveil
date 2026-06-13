@@ -2,8 +2,7 @@
 #
 # This workflow dogfoods Runveil on this repo's own lockfile AND doubles as a
 # copy-paste example for your own projects — change the lockfile path and the
-# --fail-on threshold to suit. (Once prebuilt binaries / `go install` land, the
-# "Install Runveil" step becomes a one-liner.)
+# --fail-on threshold to suit.
 name: Runveil
 
 on:
@@ -23,9 +22,8 @@ jobs:
 
       - name: Install Runveil
         run: |
-          git clone --depth 1 https://github.com/mdfaisal1/runveil /tmp/runveil
-          (cd /tmp/runveil && go build -o "$RUNNER_TEMP/runveil" ./cmd/runveil)
-          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          go install github.com/mdfaisal1/runveil/cmd/runveil@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       - name: Scan (fail only on reachable HIGH or CRITICAL)
         run: |

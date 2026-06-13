@@ -52,30 +52,25 @@ $ rv scan ./package-lock.json
 
 ## Install
 
-Runveil is a Go program. Until pre-built binaries ship, build from source:
+With a Go toolchain (1.23+):
 
 ```bash
-git clone https://github.com/mdfaisal1/runveil.git
-cd runveil
-go build -o runveil ./cmd/runveil
+go install github.com/mdfaisal1/runveil/cmd/runveil@latest
 ```
 
-Put the binary on your `PATH` (optionally alias it to `rv`):
+This puts a `runveil` binary in `$(go env GOPATH)/bin` — add that to your `PATH`, then:
 
 ```bash
-# macOS / Linux
-sudo mv runveil /usr/local/bin/
-
-# then
 runveil --help
 ```
 
 <details>
-<summary>Windows (PowerShell)</summary>
+<summary>Build from source (for contributors)</summary>
 
-```powershell
-go build -o runveil.exe ./cmd/runveil
-# move runveil.exe somewhere on your PATH, e.g. C:\tools\runveil\
+```bash
+git clone https://github.com/mdfaisal1/runveil.git
+cd runveil
+go build -o runveil ./cmd/runveil   # Windows: go build -o runveil.exe ./cmd/runveil
 ```
 </details>
 

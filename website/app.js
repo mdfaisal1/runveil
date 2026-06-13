@@ -79,7 +79,7 @@
   var copyBtn = document.getElementById('copy-btn');
   if (copyBtn) {
     copyBtn.addEventListener('click', function () {
-      var text = 'git clone https://github.com/mdfaisal1/runveil && cd runveil && go build -o rv ./cmd/runveil';
+      var text = 'go install github.com/mdfaisal1/runveil/cmd/runveil@latest';
       var done = function () {
         copyBtn.textContent = 'Copied!';
         copyBtn.classList.add('copied');

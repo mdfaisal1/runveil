@@ -4,8 +4,8 @@ Runveil exits non-zero (code `3`) when a **reachable** finding meets or exceeds 
 `--fail-on` threshold. Dormant (dev-only) findings never fail the build — that's the
 point. Drop one of the snippets below into your pipeline.
 
-> Until prebuilt binaries / `go install` are published, CI builds Runveil from source.
-> Each example clones and builds it once, then runs the scan.
+Each example installs Runveil with `go install` (requires a Go toolchain) and then
+runs the scan.
 
 ## GitHub Actions
 
@@ -24,9 +24,8 @@ jobs:
         with: { go-version: '1.25' }
       - name: Install Runveil
         run: |
-          git clone --depth 1 https://github.com/mdfaisal1/runveil /tmp/runveil
-          (cd /tmp/runveil && go build -o "$RUNNER_TEMP/runveil" ./cmd/runveil)
-          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          go install github.com/mdfaisal1/runveil/cmd/runveil@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
       - name: Scan
         run: runveil scan package-lock.json --fail-on high
 ```
@@ -37,8 +36,8 @@ jobs:
 runveil-scan:
   image: golang:1.25
   script:
-    - git clone --depth 1 https://github.com/mdfaisal1/runveil /tmp/runveil
-    - (cd /tmp/runveil && go build -o /usr/local/bin/runveil ./cmd/runveil)
+    - go install github.com/mdfaisal1/runveil/cmd/runveil@latest
+    - export PATH="$PATH:$(go env GOPATH)/bin"
     - runveil scan package-lock.json --fail-on high
 ```
 
@@ -50,9 +49,8 @@ pipeline {
   stages {
     stage('Runveil scan') {
       steps {
-        sh 'git clone --depth 1 https://github.com/mdfaisal1/runveil /tmp/runveil'
-        sh 'cd /tmp/runveil && go build -o /usr/local/bin/runveil ./cmd/runveil'
-        sh 'runveil scan package-lock.json --fail-on high'
+        sh 'go install github.com/mdfaisal1/runveil/cmd/runveil@latest'
+        sh 'export PATH="$PATH:$(go env GOPATH)/bin"; runveil scan package-lock.json --fail-on high'
       }
     }
   }
@@ -62,8 +60,8 @@ pipeline {
 ## Generic / any CI
 
 ```bash
-git clone --depth 1 https://github.com/mdfaisal1/runveil /tmp/runveil
-(cd /tmp/runveil && go build -o /usr/local/bin/runveil ./cmd/runveil)
+go install github.com/mdfaisal1/runveil/cmd/runveil@latest
+export PATH="$PATH:$(go env GOPATH)/bin"
 runveil scan package-lock.json --fail-on high   # exit 3 on reachable >= high
 ```
 

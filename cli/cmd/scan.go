@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -48,14 +49,25 @@ type finding struct {
 	VulnID    string   `json:"vuln_id"`
 	Summary   string   `json:"summary"`
 	Severity  severity `json:"severity"`
+	// Static reachability (computed at scan time, before any runtime evidence):
+	// Reachable is true when the vulnerable package is part of the production
+	// dependency tree. Dev-only packages (build/test tooling) are not shipped and
+	// are reported as dormant.
+	Reachable bool `json:"reachable"`
+	Dev       bool `json:"dev"`    // dev-only dependency per the lockfile
+	Direct    bool `json:"direct"` // listed directly in the project's dependencies
 }
 
 type report struct {
-	ProjectSlug string    `json:"project_slug"`
-	Total       int       `json:"total"`
-	Findings    []finding `json:"findings"`
-	MaxSeverity severity  `json:"max_severity"`
-	GeneratedAt string    `json:"generated_at"`
+	ProjectSlug     string    `json:"project_slug"`
+	Total           int       `json:"total"`
+	Reachable       int       `json:"reachable"` // count of statically-reachable findings
+	Dormant         int       `json:"dormant"`   // count of dev-only / unreachable findings
+	Findings        []finding `json:"findings"`
+	MaxSeverity     severity  `json:"max_severity"`           // across all findings
+	ReachableMax    severity  `json:"reachable_max_severity"` // across reachable findings only
+	NoiseReducedPct int       `json:"noise_reduced_pct"`      // % of findings filtered out as dormant
+	GeneratedAt     string    `json:"generated_at"`
 }
 
 /********** flags **********/
@@ -116,7 +128,8 @@ var scanCmd = &cobra.Command{
 
 		vulnCount := 0
 		findings := make([]finding, 0, 64)
-		maxSeen := severityNone
+		maxSeen := severityNone      // across all findings
+		maxReachable := severityNone // across reachable (production) findings only
 
 		for _, d := range deps {
 			if d.name == "" || d.version == "" {
@@ -131,8 +144,14 @@ var scanCmd = &cobra.Command{
 				continue
 			}
 
+			reachable := !d.dev // v1 static reachability: production deps are reachable
+			marker := "🚨"
+			if !reachable {
+				marker = "💤" // dev-only → dormant
+			}
+
 			vulnCount += len(res.Vulns)
-			fmt.Printf("  🚨 %s@%s — %d vuln(s)\n", d.name, d.version, len(res.Vulns))
+			fmt.Printf("  %s %s@%s — %d vuln(s)%s\n", marker, d.name, d.version, len(res.Vulns), dormantSuffix(reachable))
 			for _, v := range res.Vulns {
 				s := strings.Split(strings.TrimSpace(v.Summary), "\n")[0]
 				if len(s) > 110 {
@@ -141,6 +160,9 @@ var scanCmd = &cobra.Command{
 				sev := mapCVSS(v.Severity)
 				if sevRank(sev) > sevRank(maxSeen) {
 					maxSeen = sev
+				}
+				if reachable && sevRank(sev) > sevRank(maxReachable) {
+					maxReachable = sev
 				}
 				fmt.Printf("     • %s — %s\n", v.ID, s)
 
@@ -151,6 +173,9 @@ var scanCmd = &cobra.Command{
 					VulnID:    v.ID,
 					Summary:   s,
 					Severity:  sev,
+					Reachable: reachable,
+					Dev:       d.dev,
+					Direct:    d.direct,
 				})
 			}
 		}
@@ -159,14 +184,41 @@ var scanCmd = &cobra.Command{
 			fmt.Println("✅ No known vulnerabilities found for the packages in this lockfile (per OSV).")
 		}
 
+		// Sort reachable findings first, then by severity (so the short list that
+		// matters is at the top of every report).
+		sortFindings(findings)
+
+		reachableCount := 0
+		for _, f := range findings {
+			if f.Reachable {
+				reachableCount++
+			}
+		}
+		dormantCount := len(findings) - reachableCount
+		noiseReduced := 0
+		if len(findings) > 0 {
+			noiseReduced = int(float64(dormantCount) / float64(len(findings)) * 100)
+		}
+
 		// Build report
 		rep := report{
-			ProjectSlug: flagProject,
-			Total:       len(findings),
-			Findings:    findings,
-			MaxSeverity: maxSeen,
-			GeneratedAt: time.Now().UTC().Format(time.RFC3339),
+			ProjectSlug:     flagProject,
+			Total:           len(findings),
+			Reachable:       reachableCount,
+			Dormant:         dormantCount,
+			Findings:        findings,
+			MaxSeverity:     maxSeen,
+			ReachableMax:    maxReachable,
+			NoiseReducedPct: noiseReduced,
+			GeneratedAt:     time.Now().UTC().Format(time.RFC3339),
 		}
+
+		// The headline of every report: reachable of total.
+		fmt.Printf("\n📊 %d reachable of %d total", reachableCount, len(findings))
+		if dormantCount > 0 {
+			fmt.Printf("  ·  %d dormant (dev-only) hidden  ·  %d%% noise reduced", dormantCount, noiseReduced)
+		}
+		fmt.Println()
 
 		// Always produce JSON (for --post) + optionally a formatted view
 		reportJSON, _ := json.MarshalIndent(rep, "", "  ")
@@ -216,9 +268,10 @@ var scanCmd = &cobra.Command{
 			maybePrintRuntimeSummary(flagProject)
 		}
 
-		// CI/CD gating
-		if shouldFail(maxSeen, threshold) {
-			fmt.Printf("⛔ Policy fail: max severity %s ≥ --fail-on %s\n", strings.ToUpper(string(maxSeen)), strings.ToUpper(string(threshold)))
+		// CI/CD gating — gate on REACHABLE severity, not total noise. This is the
+		// point of Runveil: a wall of dormant dev-only CVEs should not fail your build.
+		if shouldFail(maxReachable, threshold) {
+			fmt.Printf("⛔ Policy fail: max reachable severity %s ≥ --fail-on %s\n", strings.ToUpper(string(maxReachable)), strings.ToUpper(string(threshold)))
 			os.Exit(3) // dedicated exit code for policy violation
 		}
 	},
@@ -238,6 +291,26 @@ func init() {
 type dep struct {
 	name    string
 	version string
+	dev     bool // dev-only dependency (npm "dev"/"devOptional" flag)
+	direct  bool // listed in the root package's dependencies/devDependencies
+}
+
+// directDepNames returns the set of package names listed directly in the root
+// package entry's dependencies/devDependencies/optionalDependencies maps.
+func directDepNames(packages map[string]any) map[string]bool {
+	set := map[string]bool{}
+	root, ok := packages[""].(map[string]any)
+	if !ok {
+		return set
+	}
+	for _, field := range []string{"dependencies", "devDependencies", "optionalDependencies", "peerDependencies"} {
+		if m, ok := root[field].(map[string]any); ok {
+			for name := range m {
+				set[name] = true
+			}
+		}
+	}
+	return set
 }
 
 func extractNpmPackages(lock map[string]any) []dep {
@@ -249,6 +322,8 @@ func extractNpmPackages(lock map[string]any) []dep {
 	if !ok {
 		return nil
 	}
+
+	direct := directDepNames(packages)
 
 	out := make([]dep, 0, len(packages))
 	for k, v := range packages {
@@ -275,7 +350,18 @@ func extractNpmPackages(lock map[string]any) []dep {
 			name = name[:i]
 		}
 
-		out = append(out, dep{name: name, version: ver})
+		// npm marks packages present only in the dev dependency tree with "dev": true.
+		// "devOptional": true means present only via dev and/or optional trees — also
+		// not part of a plain production install. Either way → dev-only (dormant).
+		devOnly, _ := entry["dev"].(bool)
+		devOptional, _ := entry["devOptional"].(bool)
+
+		out = append(out, dep{
+			name:    name,
+			version: ver,
+			dev:     devOnly || devOptional,
+			direct:  direct[name],
+		})
 	}
 	return out
 }
@@ -283,20 +369,63 @@ func extractNpmPackages(lock map[string]any) []dep {
 func renderMarkdown(rep report) []byte {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Runveil Scan Report — %s\n\n", safe(rep.ProjectSlug, "N/A"))
-	fmt.Fprintf(&b, "**Findings:** %d  •  **Max Severity:** %s  •  **Generated:** %s UTC\n\n",
-		rep.Total, strings.ToUpper(string(rep.MaxSeverity)), rep.GeneratedAt)
+
+	// Headline: reachable of total — the noise-reduction story up front.
+	fmt.Fprintf(&b, "## %d reachable of %d total findings\n\n", rep.Reachable, rep.Total)
+	if rep.Dormant > 0 {
+		fmt.Fprintf(&b, "> **%d%% noise reduced** — %d dormant (dev-only) findings hidden from the list below.\n\n",
+			rep.NoiseReducedPct, rep.Dormant)
+	}
+	fmt.Fprintf(&b, "**Max reachable severity:** %s  •  **Max severity (all):** %s  •  **Generated:** %s UTC\n\n",
+		strings.ToUpper(string(safeSev(rep.ReachableMax))), strings.ToUpper(string(safeSev(rep.MaxSeverity))), rep.GeneratedAt)
+
 	if rep.Total == 0 {
 		b.WriteString("_No vulnerabilities found._\n")
 		return []byte(b.String())
 	}
-	b.WriteString("| Severity | Package | Version | Ecosystem | Vuln ID | Summary |\n")
-	b.WriteString("|---|---|---|---|---|---|\n")
+	b.WriteString("| Reachability | Severity | Package | Version | Ecosystem | Vuln ID | Summary |\n")
+	b.WriteString("|---|---|---|---|---|---|---|\n")
 	for _, f := range rep.Findings {
-		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s |\n",
+		reach := "💤 Dormant"
+		if f.Reachable {
+			reach = "🔥 Reachable"
+		}
+		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s | %s |\n",
+			reach,
 			strings.ToUpper(string(f.Severity)),
 			escapeMD(f.Package), escapeMD(f.Version), escapeMD(f.Ecosystem), escapeMD(f.VulnID), escapeMD(f.Summary))
 	}
 	return []byte(b.String())
+}
+
+// safeSev renders "none" when no severity was recorded (e.g. zero reachable findings).
+func safeSev(s severity) severity {
+	if s == "" {
+		return severityNone
+	}
+	return s
+}
+
+func dormantSuffix(reachable bool) string {
+	if reachable {
+		return ""
+	}
+	return " (dormant)"
+}
+
+// sortFindings orders reachable findings first, then by descending severity,
+// then by package name — so the short list that matters sits at the top.
+func sortFindings(fs []finding) {
+	sort.SliceStable(fs, func(i, j int) bool {
+		a, b := fs[i], fs[j]
+		if a.Reachable != b.Reachable {
+			return a.Reachable // reachable before dormant
+		}
+		if sevRank(a.Severity) != sevRank(b.Severity) {
+			return sevRank(a.Severity) > sevRank(b.Severity)
+		}
+		return a.Package < b.Package
+	})
 }
 
 func safe(s, def string) string {

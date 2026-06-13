@@ -1,0 +1,42 @@
+# Runveil reachable-vulnerability scan.
+#
+# This workflow dogfoods Runveil on this repo's own lockfile AND doubles as a
+# copy-paste example for your own projects — change the lockfile path and the
+# --fail-on threshold to suit. (Once prebuilt binaries / `go install` land, the
+# "Install Runveil" step becomes a one-liner.)
+name: Runveil
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  reachable-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25'
+
+      - name: Install Runveil
+        run: |
+          git clone --depth 1 https://github.com/mdfaisal1/runveil /tmp/runveil
+          (cd /tmp/runveil && go build -o "$RUNNER_TEMP/runveil" ./cli)
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      - name: Scan (fail only on reachable HIGH or CRITICAL)
+        run: |
+          runveil scan dashboard/runveil-dashboard/package-lock.json \
+            --format md --out "$RUNNER_TEMP/runveil-report.md" \
+            --fail-on high
+          cat "$RUNNER_TEMP/runveil-report.md" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: runveil-report
+          path: ${{ runner.temp }}/runveil-report.md

@@ -123,7 +123,7 @@ func writeFindingsMarkdown(w io.Writer, fr *findingsResponse) error {
 		fmt.Fprintf(w, "- ⏱  Last evidence seen: %s\n\n",
 			latestEvidence.UTC().Format(time.RFC3339))
 	} else {
-		fmt.Fprintln(w, "- ⏱  Last evidence seen: –\n")
+		fmt.Fprintf(w, "- ⏱  Last evidence seen: –\n\n")
 	}
 
 	// --- Table header ---

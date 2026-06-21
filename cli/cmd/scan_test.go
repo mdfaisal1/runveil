@@ -92,6 +92,49 @@ func TestReachabilityHeuristic(t *testing.T) {
 	}
 }
 
+// npm lists the same package@version at multiple node_modules paths; the parser
+// must return it once, and production presence must win over a dev-only copy.
+func TestExtractNpmPackages_DedupesAndProductionWins(t *testing.T) {
+	const lf = `{
+      "packages": {
+        "": { "dependencies": { "axios": "^1.6.0" } },
+        "node_modules/axios": { "version": "1.6.0", "dev": true },
+        "node_modules/nested/node_modules/axios": { "version": "1.6.0" },
+        "node_modules/dupe": { "version": "2.0.0", "dev": true },
+        "node_modules/a/node_modules/dupe": { "version": "2.0.0", "dev": true }
+      }
+    }`
+	var lock map[string]any
+	if err := json.Unmarshal([]byte(lf), &lock); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	deps := extractNpmPackages(lock)
+
+	counts := map[string]int{}
+	var axios, dupe dep
+	for _, d := range deps {
+		counts[d.name+"@"+d.version]++
+		if d.name == "axios" {
+			axios = d
+		}
+		if d.name == "dupe" {
+			dupe = d
+		}
+	}
+	if counts["axios@1.6.0"] != 1 {
+		t.Errorf("axios should appear once, got %d", counts["axios@1.6.0"])
+	}
+	if axios.dev {
+		t.Error("axios is production in one tree → must be reachable (dev=false)")
+	}
+	if !axios.direct {
+		t.Error("axios is a direct dependency")
+	}
+	if !dupe.dev {
+		t.Error("dupe is dev-only in every copy → must stay dev=true")
+	}
+}
+
 func TestSortFindings_ReachableFirstThenSeverity(t *testing.T) {
 	fs := []finding{
 		{Package: "z-dormant", Severity: severityCritical, Reachable: false},

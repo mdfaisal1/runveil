@@ -30,19 +30,19 @@ actually affects production.
 
 ![Runveil scanning a real Angular project: 3 reachable of 297, 98% noise reduced](website/demo.gif)
 
-A real run against this repo's Angular dashboard — **1084 packages, 297 vulnerability
+A real run against this repo's Angular dashboard — **968 packages, 65 vulnerability
 findings, 3 reachable** (the rest dormant dev-only tooling that never ships):
 
 ```console
 $ rv scan ./package-lock.json --fail-on high
-🔎 Scanning 1084 packages from: ./package-lock.json
-! 297 vulnerabilities found across dependencies
-REACHABLE FINDINGS (3 of 297)
+🔎 Scanning 968 packages from: ./package-lock.json
+! 65 vulnerabilities found across dependencies
+REACHABLE FINDINGS (3 of 65)
   * @angular/compiler  HIGH  XSS in i18n attribute bindings
   * @angular/core      HIGH  XSS in i18n attribute bindings
   * @angular/core      HIGH  i18n Cross-Site Scripting
 
-📊 3 reachable of 297 total  ·  294 dormant (dev-only) hidden  ·  98% noise reduced
+📊 3 reachable of 65 total  ·  62 dormant (dev-only) hidden  ·  95% noise reduced
 ⛔ policy: max reachable severity HIGH ≥ high → exit 3
 ```
 

@@ -38,19 +38,19 @@ S = lambda t, c=WHITE, b=False: (t, c, b)
 
 LINES = [
     L(S("$ ", CYAN, True), S("rv scan ./package-lock.json --fail-on high", WHITE)),
-    L(S("-> resolving 1084 packages from lockfile...", DIM)),
+    L(S("-> resolving 968 packages from lockfile...", DIM)),
     L(S("-> querying OSV vulnerability database...", DIM)),
-    L(S("!  297 vulnerabilities found across dependencies", YELLOW)),
+    L(S("!  65 vulnerabilities found across dependencies", YELLOW)),
     L(S("-> building dependency & call graph...", DIM)),
     L(S("-> classifying reachable vs dormant...", DIM)),
     None,
-    L(S("REACHABLE FINDINGS ", CYAN, True), S("(3 of 297)", DIM)),
+    L(S("REACHABLE FINDINGS ", CYAN, True), S("(3 of 65)", DIM)),
     L(S("  * @angular/compiler  ", WHITE), S("HIGH  ", RED, True), S("XSS in i18n attribute bindings", DIM)),
     L(S("  * @angular/core      ", WHITE), S("HIGH  ", RED, True), S("XSS in i18n attribute bindings", DIM)),
     L(S("  * @angular/core      ", WHITE), S("HIGH  ", RED, True), S("i18n Cross-Site Scripting", DIM)),
     None,
-    L(S("+ 294 dormant (dev-only) CVEs hidden", GREEN), S("  - never on an executed path", DIM)),
-    L(S("= 3 reachable of 297 total  ", CYAN, True), S("- 98% noise reduced", GREEN, True)),
+    L(S("+ 62 dormant (dev-only) CVEs hidden", GREEN), S("  - never on an executed path", DIM)),
+    L(S("= 3 reachable of 65 total  ", CYAN, True), S("- 95% noise reduced", GREEN, True)),
     L(S("x policy: max reachable HIGH >= high  ->  exit 3", RED)),
 ]
 

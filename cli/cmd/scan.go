@@ -325,7 +325,14 @@ func extractNpmPackages(lock map[string]any) []dep {
 
 	direct := directDepNames(packages)
 
+	// npm lockfiles list the same package@version at multiple node_modules paths
+	// (nested installs), so dedupe by name+version. When a version appears both in
+	// the production and dev trees, production wins (dev only if every copy is dev)
+	// and direct wins, so reachability is never understated.
+	type nv struct{ name, version string }
+	seen := make(map[nv]int, len(packages))
 	out := make([]dep, 0, len(packages))
+
 	for k, v := range packages {
 		entry, ok := v.(map[string]any)
 		if !ok {
@@ -338,16 +345,12 @@ func extractNpmPackages(lock map[string]any) []dep {
 			continue
 		}
 
-		name := strings.TrimPrefix(k, "node_modules/")
-		// Scoped packages appear as "node_modules/@scope/pkg" → keep as "@scope/pkg"
-		if strings.HasPrefix(name, "@") && strings.Count(name, "/") >= 1 {
-			parts := strings.SplitN(name, "/", 2)
-			if len(parts) == 2 {
-				name = parts[0] + "/" + parts[1]
-			}
-		} else if i := strings.Index(name, "/"); i >= 0 && !strings.HasPrefix(name, "@") {
-			// For paths like "node_modules/foo/bar" (rare), keep only the first segment
-			name = name[:i]
+		// The package name is the path segment after the LAST "node_modules/", so
+		// nested installs resolve to the real package, not its parent. e.g.
+		// "node_modules/a/node_modules/@scope/b" → "@scope/b".
+		name := k
+		if i := strings.LastIndex(k, "node_modules/"); i >= 0 {
+			name = k[i+len("node_modules/"):]
 		}
 
 		// npm marks packages present only in the dev dependency tree with "dev": true.
@@ -355,13 +358,21 @@ func extractNpmPackages(lock map[string]any) []dep {
 		// not part of a plain production install. Either way → dev-only (dormant).
 		devOnly, _ := entry["dev"].(bool)
 		devOptional, _ := entry["devOptional"].(bool)
-
-		out = append(out, dep{
+		d := dep{
 			name:    name,
 			version: ver,
 			dev:     devOnly || devOptional,
 			direct:  direct[name],
-		})
+		}
+
+		if idx, ok := seen[nv{name, ver}]; ok {
+			// merge: production beats dev, direct beats transitive
+			out[idx].dev = out[idx].dev && d.dev
+			out[idx].direct = out[idx].direct || d.direct
+			continue
+		}
+		seen[nv{name, ver}] = len(out)
+		out = append(out, d)
 	}
 	return out
 }

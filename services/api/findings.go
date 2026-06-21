@@ -12,6 +12,7 @@ import (
 
 // FindingView is what we return to the CLI / UI.
 type FindingView struct {
+	ID            string     `json:"id"`
 	Package       string     `json:"package"`
 	Version       string     `json:"version"`
 	Ecosystem     string     `json:"ecosystem"`
@@ -52,6 +53,7 @@ func registerFindings(r *gin.Engine, db *sql.DB) {
 		//   findings(package_id -> packages.id, vulnerability_id -> vulnerabilities.id)
 		query := `
 SELECT
+    f.id,
     p.name,
     p.version,
     p.ecosystem,
@@ -122,6 +124,7 @@ ORDER BY
 		for rows.Next() {
 			var v FindingView
 			if err := rows.Scan(
+				&v.ID,
 				&v.Package,
 				&v.Version,
 				&v.Ecosystem,

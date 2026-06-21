@@ -112,6 +112,12 @@ func applyRuntimeObservation(
 	}
 	defer func() { _ = tx.Rollback() }() // no-op if already committed
 
+	// Resolve project id once so we can attach evidence events to it.
+	var projectID string
+	if err := tx.QueryRowContext(ctx, `SELECT id FROM projects WHERE slug = $1`, slug).Scan(&projectID); err != nil {
+		return 0, err
+	}
+
 	var totalUpdated int64
 
 	for _, p := range req.Packages {
@@ -140,9 +146,10 @@ func applyRuntimeObservation(
 		}
 		rows.Close()
 
-		// 2) For each package, mark all its findings as reachable and update evidence.
+		// 2) For each package, mark all its findings as reachable, bump evidence
+		//    counters, and record one evidence event per affected finding.
 		for _, pkgID := range pkgIDs {
-			res, err := tx.ExecContext(ctx, `
+			frows, err := tx.QueryContext(ctx, `
 				UPDATE findings
 				SET reachable      = true,
 				    evidence_count = evidence_count + 1,
@@ -150,15 +157,32 @@ func applyRuntimeObservation(
 				    last_seen_at   = $2,
 				    updated_at     = now()
 				WHERE package_id = $1
+				RETURNING id
 			`, pkgID, observedAt)
 			if err != nil {
 				return 0, err
 			}
-			n, err := res.RowsAffected()
-			if err != nil {
-				return 0, err
+			var findingIDs []string
+			for frows.Next() {
+				var id string
+				if err := frows.Scan(&id); err != nil {
+					frows.Close()
+					return 0, err
+				}
+				findingIDs = append(findingIDs, id)
 			}
-			totalUpdated += n
+			frows.Close()
+
+			for _, fID := range findingIDs {
+				if _, err := tx.ExecContext(ctx, `
+					INSERT INTO evidence_events
+					    (project_id, finding_id, package_name, package_version, environment, occurred_at)
+					VALUES ($1, $2, $3, $4, NULLIF($5, ''), $6)
+				`, projectID, fID, p.Name, p.Version, req.Environment, observedAt); err != nil {
+					return 0, err
+				}
+			}
+			totalUpdated += int64(len(findingIDs))
 		}
 	}
 

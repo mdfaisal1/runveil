@@ -18,6 +18,13 @@ export const routes: Routes = [
                     import('./features/findings/findings.component').then((m) => m.FindingsComponent),
             },
 
+            // Finding detail + evidence explorer
+            {
+                path: 'projects/:slug/findings/:id',
+                loadComponent: () =>
+                    import('./features/finding-detail/finding-detail.component').then((m) => m.FindingDetailComponent),
+            },
+
             // Project detail (keep as lazy-load so it works even if your component isn't standalone yet)
             {
                 path: 'projects/:slug',

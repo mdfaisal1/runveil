@@ -1,0 +1,93 @@
+<div class="mx-auto max-w-5xl px-6 py-8">
+  <a [routerLink]="['/projects', slug(), 'findings']"
+     class="text-sm text-slate-400 hover:text-slate-200">← Back to findings</a>
+
+  <div *ngIf="loading()" class="mt-8 text-slate-400">Loading…</div>
+  <div *ngIf="error()" class="mt-8 rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-rose-100">
+    {{ error() }}
+  </div>
+
+  <ng-container *ngIf="!loading() && finding() as f">
+    <!-- Header -->
+    <div class="mt-4 flex flex-wrap items-center gap-3">
+      <span class="inline-flex items-center rounded-xl border px-3 py-1 text-xs font-semibold"
+            [ngClass]="badgeClass(f.severity)">{{ (f.severity || 'LOW') | uppercase }}</span>
+      <span class="inline-flex items-center rounded-xl border px-3 py-1 text-xs"
+            [ngClass]="f.reachable
+              ? 'border-orange-500/25 bg-orange-500/10 text-orange-100'
+              : 'border-white/10 bg-white/[0.03] text-slate-300'">{{ reachLabel() }}</span>
+      <span *ngIf="f.is_direct" class="text-[11px] uppercase tracking-wide text-slate-500">direct dependency</span>
+    </div>
+
+    <h1 class="mt-3 text-2xl font-bold text-slate-100">{{ f.package }}
+      <span class="text-slate-500">· {{ f.version }}</span>
+    </h1>
+    <p class="mt-1 text-sm text-slate-400">{{ f.ecosystem }} · {{ f.vuln_id }}</p>
+    <p class="mt-3 max-w-3xl text-slate-200">{{ f.summary }}</p>
+
+    <!-- Overview cards -->
+    <div class="mt-8 grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <div class="text-xs text-slate-500">Runtime state</div>
+        <div class="mt-1 text-lg font-semibold text-slate-100">{{ f.runtime_state || 'dormant' }}</div>
+      </div>
+      <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <div class="text-xs text-slate-500">Evidence events</div>
+        <div class="mt-1 text-lg font-semibold text-slate-100">{{ f.evidence_count || 0 }}</div>
+      </div>
+      <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <div class="text-xs text-slate-500">First seen</div>
+        <div class="mt-1 text-sm font-semibold text-slate-100">
+          {{ f.first_seen_at ? (f.first_seen_at | date:'MMM d, y, HH:mm') : '—' }}
+        </div>
+      </div>
+      <div class="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+        <div class="text-xs text-slate-500">Last seen</div>
+        <div class="mt-1 text-sm font-semibold text-slate-100">
+          {{ f.last_seen_at ? (f.last_seen_at | date:'MMM d, y, HH:mm') : '—' }}
+        </div>
+      </div>
+    </div>
+
+    <div *ngIf="f.fixed_version" class="mt-4 text-sm text-slate-300">
+      <span class="text-slate-500">Fixed in:</span> <span class="font-mono text-emerald-300">{{ f.fixed_version }}</span>
+    </div>
+
+    <!-- Timeline -->
+    <h2 class="mt-10 text-lg font-semibold text-slate-100">Evidence timeline</h2>
+    <div *ngIf="timeline().length === 0" class="mt-2 text-sm text-slate-400">
+      No runtime evidence yet — this finding is dormant until the Runveil agent observes it executing.
+    </div>
+    <div *ngIf="timeline().length > 0" class="mt-4 flex items-end gap-2 rounded-2xl border border-white/10 bg-white/[0.02] p-4"
+         style="height: 140px;">
+      <div *ngFor="let b of timeline()" class="flex flex-1 flex-col items-center justify-end gap-1" [title]="b.day + ': ' + b.count + ' events'">
+        <div class="w-full rounded-t bg-sky-400/70" [style.height.%]="b.pct"></div>
+        <div class="text-[10px] text-slate-500">{{ b.day | date:'MMM d' }}</div>
+      </div>
+    </div>
+
+    <!-- Evidence table -->
+    <h2 class="mt-10 text-lg font-semibold text-slate-100">Evidence ({{ evidence().length }})</h2>
+    <div class="mt-3 overflow-hidden rounded-2xl border border-white/10">
+      <table class="w-full text-left text-sm">
+        <thead class="bg-white/[0.03] text-xs uppercase tracking-wide text-slate-500">
+          <tr>
+            <th class="px-5 py-3">Timestamp</th>
+            <th class="px-5 py-3">Environment</th>
+            <th class="px-5 py-3">Package</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let e of evidence()" class="border-t border-white/5">
+            <td class="px-5 py-3 text-slate-200">{{ e.occurred_at | date:'MMM d, y, HH:mm:ss' }}</td>
+            <td class="px-5 py-3 text-slate-300">{{ e.environment || '—' }}</td>
+            <td class="px-5 py-3 text-slate-400">{{ e.package_name }}&#64;{{ e.package_version }}</td>
+          </tr>
+          <tr *ngIf="evidence().length === 0">
+            <td colspan="3" class="px-5 py-8 text-center text-sm text-slate-400">No evidence events recorded.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </ng-container>
+</div>

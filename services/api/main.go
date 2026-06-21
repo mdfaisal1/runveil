@@ -37,6 +37,7 @@ func main() {
 	registerIngest(r, db)
 	registerRuntime(r, db)
 	registerFindings(r, db)
+	registerEvidence(r, db)
 	registerProjects(r, db)
 
 	// GET /health → { ok: true } if DB is reachable

@@ -158,7 +158,8 @@
                         </td>
 
                         <td class="px-5 py-4">
-                            <div class="text-sm font-semibold text-slate-100">{{ f.package }}</div>
+                            <a [routerLink]="[f.id]"
+                               class="text-sm font-semibold text-sky-300 hover:text-sky-200 hover:underline">{{ f.package }}</a>
                             <div class="mt-1 text-xs text-slate-500">{{ f.ecosystem }} · {{ f.version }}</div>
                         </td>
 

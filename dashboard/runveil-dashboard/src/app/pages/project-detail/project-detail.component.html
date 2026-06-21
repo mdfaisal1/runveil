@@ -73,6 +73,38 @@
             {{ toast }}
         </div>
     </div>
+
+    <!-- Slack notifications -->
+    <div class="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <div class="text-xs uppercase tracking-widest text-slate-400">Slack alerts</div>
+                <div class="mt-1 text-sm text-slate-300">
+                    Get pinged only when a <span class="text-orange-200">new reachable</span> high/critical finding
+                    appears — not the dormant noise.
+                </div>
+            </div>
+            <span class="rounded-xl border px-3 py-1 text-xs"
+                [ngClass]="slackConfigured
+                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                    : 'border-white/10 bg-white/[0.03] text-slate-400'">
+                {{ slackConfigured ? 'Enabled' : 'Off' }}
+            </span>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-center gap-3">
+            <input
+                class="min-w-[280px] flex-1 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm text-slate-100 outline-none focus:border-orange-500/40"
+                placeholder="https://hooks.slack.com/services/…  (leave empty to disable)"
+                [(ngModel)]="slackWebhook" />
+            <button type="button"
+                class="rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2 text-sm font-medium text-orange-200 transition hover:border-orange-500/40 hover:bg-orange-500/15 disabled:opacity-50"
+                (click)="saveSlack()" [disabled]="slackBusy">
+                {{ slackBusy ? 'Saving…' : 'Save' }}
+            </button>
+        </div>
+        <div *ngIf="slackMsg" class="mt-3 text-sm text-slate-300">{{ slackMsg }}</div>
+    </div>
 </div>
 
 <!-- Modal -->

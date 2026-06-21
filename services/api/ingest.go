@@ -245,6 +245,29 @@ func ingest(ctx context.Context, db *sql.DB, slug string, req *IngestRequest, ra
 		return nil, err
 	}
 
+	// Snapshot which (package, version, vuln) were ALREADY reachable for this
+	// project, so we can detect findings that become reachable in this scan and
+	// alert on them. Runs before this scan's rows are inserted.
+	priorReachable := map[string]bool{}
+	if prRows, err := tx.QueryContext(ctx, `
+		SELECT p.name, p.version, v.vuln_id
+		FROM findings f
+		JOIN packages p        ON p.id = f.package_id
+		JOIN scans s           ON s.id = p.scan_id
+		JOIN projects proj     ON proj.id = s.project_id
+		JOIN vulnerabilities v ON v.id = f.vulnerability_id
+		WHERE proj.slug = $1 AND f.reachable = true
+	`, slug); err == nil {
+		for prRows.Next() {
+			var n, ver, vid string
+			if err := prRows.Scan(&n, &ver, &vid); err == nil {
+				priorReachable[n+"@"+ver+"|"+vid] = true
+			}
+		}
+		prRows.Close()
+	}
+	var newReachable []slackFinding
+
 	// 4) insert packages + (upsert) vulnerabilities + findings (same as before)
 	pkgs := 0
 	vulnUpserts := 0
@@ -292,11 +315,29 @@ func ingest(ctx context.Context, db *sql.DB, slug string, req *IngestRequest, ra
 				return nil, err
 			}
 			findings++
+
+			// Collect newly-reachable HIGH/CRITICAL findings to alert on.
+			sev := strings.ToUpper(v.Severity)
+			if v.Reachable && (sev == "HIGH" || sev == "CRITICAL") {
+				key := p.Name + "@" + p.Version + "|" + v.VulnID
+				if !priorReachable[key] {
+					newReachable = append(newReachable, slackFinding{
+						Severity: sev, Package: p.Name, Version: p.Version, VulnID: v.VulnID,
+					})
+				}
+			}
 		}
 	}
 
 	if err := tx.Commit(); err != nil {
 		return nil, err
+	}
+
+	// Alert on newly-reachable high/critical findings (best-effort, non-blocking).
+	if len(newReachable) > 0 {
+		if webhook := projectSlackWebhook(ctx, db, slug); webhook != "" {
+			go notifySlackNewReachable(webhook, slug, newReachable)
+		}
 	}
 
 	return &IngestResponse{

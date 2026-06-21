@@ -27,6 +27,12 @@ export class ProjectDetailComponent {
   dormant = 0;
   countsLoaded = false;
 
+  // Slack notifications
+  slackWebhook = '';
+  slackConfigured = false;
+  slackBusy = false;
+  slackMsg = '';
+
   // modal state
   modalOpen = false;
   mode: ModalMode = 'ingest';
@@ -38,6 +44,34 @@ export class ProjectDetailComponent {
   ngOnInit() {
     this.slug = this.route.snapshot.paramMap.get('slug') || '';
     this.loadCounts();
+    this.loadSettings();
+  }
+
+  loadSettings() {
+    if (!this.slug) return;
+    this.http.get<any>(`/v1/projects/${this.slug}/settings`).subscribe({
+      next: (res) => (this.slackConfigured = !!res?.slack_webhook_configured),
+      error: () => {},
+    });
+  }
+
+  saveSlack() {
+    this.slackBusy = true;
+    this.slackMsg = '';
+    this.http
+      .put<any>(`/v1/projects/${this.slug}/settings`, { slack_webhook_url: this.slackWebhook.trim() })
+      .subscribe({
+        next: (res) => {
+          this.slackBusy = false;
+          this.slackConfigured = !!res?.slack_webhook_configured;
+          this.slackWebhook = '';
+          this.slackMsg = this.slackConfigured ? 'Saved — alerts on new reachable risk are on.' : 'Slack alerts disabled.';
+        },
+        error: (e) => {
+          this.slackBusy = false;
+          this.slackMsg = e?.error?.error || 'Failed to save webhook.';
+        },
+      });
   }
 
   loadCounts() {

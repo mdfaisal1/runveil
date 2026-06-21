@@ -39,6 +39,7 @@ func main() {
 	registerFindings(r, db)
 	registerEvidence(r, db)
 	registerProjects(r, db)
+	registerNotifications(r, db)
 
 	// GET /health → { ok: true } if DB is reachable
 	r.GET("/health", func(c *gin.Context) {

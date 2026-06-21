@@ -20,29 +20,28 @@
         </div>
     </div>
 
-    <!-- Overview cards -->
+    <!-- Reachable / dormant overview -->
     <div class="mt-8 grid gap-4 md:grid-cols-3">
-        <div class="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-            <div class="text-xs uppercase tracking-widest text-slate-400">Status</div>
-            <div class="mt-2 text-lg font-medium text-slate-100">Connected</div>
-            <div class="mt-1 text-sm text-slate-400">API reachable via proxy.</div>
-        </div>
+        <a class="rounded-2xl border border-white/10 bg-white/[0.02] p-5 transition hover:border-white/15 hover:bg-white/[0.04]"
+            [routerLink]="['/projects', slug, 'findings']">
+            <div class="text-xs uppercase tracking-widest text-slate-400">Total findings</div>
+            <div class="mt-2 text-3xl font-semibold text-slate-100">{{ countsLoaded ? total : '—' }}</div>
+            <div class="mt-1 text-sm text-slate-400">All vulnerabilities detected.</div>
+        </a>
 
-        <div class="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-            <div class="text-xs uppercase tracking-widest text-slate-400">Next</div>
-            <div class="mt-2 text-lg font-medium text-slate-100">Scans</div>
-            <div class="mt-1 text-sm text-slate-400">
-                Trigger ingest and observe runtime (now wired).
-            </div>
-        </div>
+        <a class="rounded-2xl border border-orange-500/25 bg-orange-500/[0.06] p-5 transition hover:border-orange-500/40"
+            [routerLink]="['/projects', slug, 'findings']">
+            <div class="text-xs uppercase tracking-widest text-orange-300/80">🔥 Reachable</div>
+            <div class="mt-2 text-3xl font-semibold text-orange-200">{{ countsLoaded ? reachable : '—' }}</div>
+            <div class="mt-1 text-sm text-orange-300/70">On a production code path — fix these first.</div>
+        </a>
 
-        <div class="rounded-2xl border border-white/10 bg-white/[0.02] p-5">
-            <div class="text-xs uppercase tracking-widest text-slate-400">Navigation</div>
-            <div class="mt-2 text-lg font-medium text-slate-100">Findings</div>
-            <div class="mt-1 text-sm text-slate-400">
-                Detailed vulnerability list and evidence.
-            </div>
-        </div>
+        <a class="rounded-2xl border border-white/10 bg-white/[0.02] p-5 transition hover:border-white/15 hover:bg-white/[0.04]"
+            [routerLink]="['/projects', slug, 'findings']">
+            <div class="text-xs uppercase tracking-widest text-slate-400">🌑 Dormant</div>
+            <div class="mt-2 text-3xl font-semibold text-slate-300">{{ countsLoaded ? dormant : '—' }}</div>
+            <div class="mt-1 text-sm text-slate-400">Dev-only / unreachable — safely deprioritized.</div>
+        </a>
     </div>
 
     <!-- Actions -->

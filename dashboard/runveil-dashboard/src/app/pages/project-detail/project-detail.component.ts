@@ -3,6 +3,7 @@ import { Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
+import { RunveilApiService } from '../../core/api/runveil-api.service';
 
 type ModalMode = 'ingest' | 'observe';
 
@@ -15,9 +16,16 @@ type ModalMode = 'ingest' | 'observe';
 export class ProjectDetailComponent {
   private route = inject(ActivatedRoute);
   private http = inject(HttpClient);
+  private api = inject(RunveilApiService);
 
   slug = '';
   toast = '';
+
+  // reachable/dormant overview
+  total = 0;
+  reachable = 0;
+  dormant = 0;
+  countsLoaded = false;
 
   // modal state
   modalOpen = false;
@@ -29,6 +37,23 @@ export class ProjectDetailComponent {
 
   ngOnInit() {
     this.slug = this.route.snapshot.paramMap.get('slug') || '';
+    this.loadCounts();
+  }
+
+  loadCounts() {
+    if (!this.slug) return;
+    this.api.getFindings(this.slug).subscribe({
+      next: (res) => {
+        const list = res.findings ?? [];
+        this.total = list.length;
+        this.reachable = list.filter((f) => f.reachable).length;
+        this.dormant = this.total - this.reachable;
+        this.countsLoaded = true;
+      },
+      error: () => {
+        this.countsLoaded = true;
+      },
+    });
   }
 
   openIngest() {
@@ -74,6 +99,7 @@ export class ProjectDetailComponent {
           this.busy = false;
           this.modalOpen = false;
           this.showToast(`Ingested ✅ scan_id=${res?.scan_id || 'ok'} (findings: ${res?.findings ?? '—'})`);
+          this.loadCounts();
         },
         error: (e) => {
           this.busy = false;
@@ -100,6 +126,7 @@ export class ProjectDetailComponent {
         this.busy = false;
         this.modalOpen = false;
         this.showToast(`Runtime observed ✅ findings_updated=${res?.findings_updated ?? 'ok'}`);
+        this.loadCounts();
       },
       error: (e) => {
         this.busy = false;
@@ -123,20 +150,26 @@ export class ProjectDetailComponent {
           generated_at: now,
           findings: [
             {
-              package: 'lodash',
-              version: '4.17.19',
+              package: 'axios',
+              version: '1.6.0',
               ecosystem: 'npm',
-              vuln_id: 'GHSA-29mw-wpgm-hmr9',
-              summary: 'Regular Expression Denial of Service (ReDoS) in lodash',
-              severity: 'LOW',
+              vuln_id: 'CVE-2023-45857',
+              summary: 'Server-Side Request Forgery in axios',
+              severity: 'HIGH',
+              reachable: true,
+              dev: false,
+              direct: true,
             },
             {
-              package: 'lodash',
-              version: '4.17.19',
+              package: 'minimist',
+              version: '1.2.0',
               ecosystem: 'npm',
-              vuln_id: 'GHSA-35jh-r3h4-6jhm',
-              summary: 'Command Injection in lodash',
-              severity: 'LOW',
+              vuln_id: 'GHSA-vh95-rmgr-6w4m',
+              summary: 'Prototype Pollution in minimist (dev-only)',
+              severity: 'MEDIUM',
+              reachable: false,
+              dev: true,
+              direct: false,
             },
           ],
         },

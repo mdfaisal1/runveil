@@ -25,6 +25,13 @@ export const routes: Routes = [
                     import('./features/finding-detail/finding-detail.component').then((m) => m.FindingDetailComponent),
             },
 
+            // Hotspots (risk-ranked findings)
+            {
+                path: 'projects/:slug/hotspots',
+                loadComponent: () =>
+                    import('./features/hotspots/hotspots.component').then((m) => m.HotspotsComponent),
+            },
+
             // Project detail (keep as lazy-load so it works even if your component isn't standalone yet)
             {
                 path: 'projects/:slug',

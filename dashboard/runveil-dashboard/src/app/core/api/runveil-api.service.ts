@@ -16,11 +16,17 @@ export type FindingView = {
     evidence_count: number;
     last_seen_at?: string | null;
     runtime_state?: string; // backend sends this in your code
+    risk_score?: number;
 };
 
 export type FindingsResponse = {
     project_slug: string;
     findings: FindingView[];
+};
+
+export type HotspotsResponse = {
+    project_slug: string;
+    hotspots: FindingView[];
 };
 
 export type FindingDetail = {
@@ -81,5 +87,10 @@ export class RunveilApiService {
             `/v1/projects/${slug}/findings/${id}/evidence`,
             { params }
         );
+    }
+
+    getHotspots(slug: string, limit = 20): Observable<HotspotsResponse> {
+        const params = new HttpParams().set('limit', String(limit));
+        return this.http.get<HotspotsResponse>(`/v1/projects/${slug}/hotspots`, { params });
     }
 }

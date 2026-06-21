@@ -25,6 +25,7 @@ type FindingView struct {
 	EvidenceCount int64      `json:"evidence_count"`
 	LastSeenAt    *time.Time `json:"last_seen_at,omitempty"`
 	RuntimeState  string     `json:"runtime_state"`
+	RiskScore     int        `json:"risk_score"`
 }
 
 type FindingsResponse struct {
@@ -71,6 +72,7 @@ JOIN scans s           ON s.id = p.scan_id
 JOIN projects proj     ON proj.id = s.project_id
 JOIN vulnerabilities v ON v.id = f.vulnerability_id
 WHERE proj.slug = $1
+  AND s.id = (SELECT id FROM scans WHERE project_id = proj.id ORDER BY created_at DESC LIMIT 1)
 `
 
 		// --- 3) Apply filters when present ---
@@ -143,8 +145,9 @@ ORDER BY
 				return
 			}
 
-			// derive runtime_state from evidence_count + last_seen_at
+			// derive runtime_state + risk score from the row's signals
 			v.RuntimeState = deriveRuntimeState(v.EvidenceCount, v.LastSeenAt)
+			v.RiskScore = riskScore(v.Reachable, v.Severity, v.EvidenceCount)
 			out = append(out, v)
 		}
 

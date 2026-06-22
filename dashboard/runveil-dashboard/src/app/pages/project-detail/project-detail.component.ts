@@ -3,7 +3,7 @@ import { Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { RunveilApiService } from '../../core/api/runveil-api.service';
+import { RunveilApiService, ScanView } from '../../core/api/runveil-api.service';
 
 type ModalMode = 'ingest' | 'observe';
 
@@ -19,6 +19,7 @@ export class ProjectDetailComponent {
   private api = inject(RunveilApiService);
 
   slug = '';
+  repoUrl: string | null = null;
   toast = '';
 
   // reachable/dormant overview
@@ -26,6 +27,10 @@ export class ProjectDetailComponent {
   reachable = 0;
   dormant = 0;
   countsLoaded = false;
+
+  // scan history
+  scans: ScanView[] = [];
+  scansLoaded = false;
 
   // Slack notifications
   slackWebhook = '';
@@ -43,8 +48,31 @@ export class ProjectDetailComponent {
 
   ngOnInit() {
     this.slug = this.route.snapshot.paramMap.get('slug') || '';
+    this.loadProject();
     this.loadCounts();
+    this.loadScans();
     this.loadSettings();
+  }
+
+  loadScans() {
+    if (!this.slug) return;
+    this.api.getScans(this.slug).subscribe({
+      next: (res) => {
+        this.scans = res.scans ?? [];
+        this.scansLoaded = true;
+      },
+      error: () => {
+        this.scansLoaded = true;
+      },
+    });
+  }
+
+  loadProject() {
+    if (!this.slug) return;
+    this.api.getProject(this.slug).subscribe({
+      next: (p) => { this.repoUrl = p.repo_url ?? null; },
+      error: () => {},
+    });
   }
 
   loadSettings() {
@@ -134,6 +162,7 @@ export class ProjectDetailComponent {
           this.modalOpen = false;
           this.showToast(`Ingested ✅ scan_id=${res?.scan_id || 'ok'} (findings: ${res?.findings ?? '—'})`);
           this.loadCounts();
+          this.loadScans();
         },
         error: (e) => {
           this.busy = false;

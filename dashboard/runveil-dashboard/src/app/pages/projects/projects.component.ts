@@ -7,6 +7,7 @@ import { Router, RouterLink } from '@angular/router';
 interface Project {
   slug: string;
   name: string;
+  repo_url?: string | null;
   updated_at?: string;
 }
 

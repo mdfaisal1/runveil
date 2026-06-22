@@ -60,9 +60,36 @@ export type EvidenceResponse = {
     evidence: EvidenceEvent[];
 };
 
+export type ProjectSummary = {
+    slug: string;
+    name: string;
+    repo_url?: string | null;
+    updated_at?: string;
+};
+
+export type ScanView = {
+    id: string;
+    status: string;
+    source?: string | null;
+    lockfile_path?: string | null;
+    package_count: number;
+    finding_count: number;
+    started_at: string;
+    finished_at?: string | null;
+};
+
+export type ScansResponse = {
+    project_slug: string;
+    scans: ScanView[];
+};
+
 @Injectable({ providedIn: 'root' })
 export class RunveilApiService {
     private http = inject(HttpClient);
+
+    getProject(slug: string): Observable<ProjectSummary> {
+        return this.http.get<ProjectSummary>(`/v1/projects/${slug}`);
+    }
 
     getFindings(
         slug: string,
@@ -92,5 +119,9 @@ export class RunveilApiService {
     getHotspots(slug: string, limit = 20): Observable<HotspotsResponse> {
         const params = new HttpParams().set('limit', String(limit));
         return this.http.get<HotspotsResponse>(`/v1/projects/${slug}/hotspots`, { params });
+    }
+
+    getScans(slug: string): Observable<ScansResponse> {
+        return this.http.get<ScansResponse>(`/v1/projects/${slug}/scans`);
     }
 }

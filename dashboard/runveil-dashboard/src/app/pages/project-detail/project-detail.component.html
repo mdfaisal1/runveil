@@ -5,6 +5,11 @@
             <div class="text-xs uppercase tracking-widest text-slate-400">Project</div>
             <h1 class="mt-2 text-3xl font-semibold text-slate-100">{{ slug }}</h1>
             <p class="mt-2 text-sm text-slate-400">Project overview and actions.</p>
+            <a *ngIf="repoUrl" [href]="repoUrl" target="_blank" rel="noopener noreferrer"
+                class="mt-2 inline-flex items-center gap-1.5 text-xs text-sky-400 transition hover:text-sky-300">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16" fill="currentColor" class="h-3.5 w-3.5 shrink-0"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+                {{ repoUrl }}
+            </a>
         </div>
 
         <div class="flex items-center gap-3">
@@ -109,6 +114,60 @@
             </button>
         </div>
         <div *ngIf="slackMsg" class="mt-3 text-sm text-slate-300">{{ slackMsg }}</div>
+    </div>
+
+    <!-- Scan history -->
+    <div class="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <div class="text-xs uppercase tracking-widest text-slate-400">Scan history</div>
+                <div class="mt-1 text-sm text-slate-300">Every scan ingested for this project, newest first.</div>
+            </div>
+            <span class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-slate-400">
+                {{ scansLoaded ? scans.length : '—' }} {{ scans.length === 1 ? 'scan' : 'scans' }}
+            </span>
+        </div>
+
+        <div *ngIf="scansLoaded && scans.length === 0" class="mt-4 text-sm text-slate-400">
+            No scans yet — run <span class="font-mono text-slate-300">runveil scan</span> and ingest the report.
+        </div>
+
+        <div *ngIf="scans.length > 0" class="mt-4 overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="text-xs uppercase tracking-widest text-slate-500">
+                    <tr class="border-b border-white/10">
+                        <th class="py-2 pr-4 font-medium">Started</th>
+                        <th class="py-2 pr-4 font-medium">Source</th>
+                        <th class="py-2 pr-4 font-medium">Status</th>
+                        <th class="py-2 pr-4 text-right font-medium">Packages</th>
+                        <th class="py-2 pr-4 text-right font-medium">Findings</th>
+                        <th class="py-2 font-medium">Lockfile</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let s of scans" class="border-b border-white/5">
+                        <td class="py-2.5 pr-4 text-slate-200">{{ s.started_at | date:'medium' }}</td>
+                        <td class="py-2.5 pr-4 text-slate-300">{{ s.source || '—' }}</td>
+                        <td class="py-2.5 pr-4">
+                            <span class="rounded-lg border px-2 py-0.5 text-xs"
+                                [ngClass]="s.status === 'succeeded'
+                                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                                    : s.status === 'failed'
+                                        ? 'border-red-500/30 bg-red-500/10 text-red-200'
+                                        : 'border-white/10 bg-white/[0.03] text-slate-400'">
+                                {{ s.status }}
+                            </span>
+                        </td>
+                        <td class="py-2.5 pr-4 text-right text-slate-200">{{ s.package_count }}</td>
+                        <td class="py-2.5 pr-4 text-right"
+                            [ngClass]="s.finding_count > 0 ? 'text-orange-200' : 'text-slate-400'">
+                            {{ s.finding_count }}
+                        </td>
+                        <td class="py-2.5 font-mono text-xs text-slate-400">{{ s.lockfile_path || '—' }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 

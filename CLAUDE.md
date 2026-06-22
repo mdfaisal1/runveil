@@ -8,8 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ```bash
 go build -o runveil ./cmd/runveil  # Build CLI binary
 go run ./cmd/runveil scan --help   # Run CLI directly
+go run ./cmd/runveil version       # Print version + build metadata
 go install github.com/mdfaisal1/runveil/cmd/runveil@latest  # Install from source
 ```
+
+Version/commit/date are injected via ldflags into `cli/cmd` package vars (see
+`version.go`); a plain build reports `dev`.
 
 ### API Service (Go)
 ```bash
@@ -29,9 +33,34 @@ cargo build --release
 ```
 
 ### Local Infrastructure
+**Postgres is host-installed, NOT Docker.** Runveil connects to your system
+PostgreSQL on `localhost:5432` (no Docker PG dependency). One-time setup:
 ```bash
-cd deploy/compose && docker compose up -d    # Start Postgres, Neo4j, NATS
+# As a Postgres superuser (psql):
+CREATE USER runveil WITH PASSWORD 'runveil';
+CREATE DATABASE runveil OWNER runveil;
+# then apply migrations:
+runveil migrate up
 ```
+Docker Compose only brings up the auxiliary infra:
+```bash
+cd deploy/compose && docker compose up -d    # Start Neo4j + NATS (no Postgres)
+```
+
+### Docker Images (production)
+```bash
+# API — build context is the REPO ROOT (single Go module):
+docker build -f services/api/Dockerfile -t runveil-api .
+# Reaches host Postgres via host.docker.internal (RUNTIME_NET=internal):
+docker run --rm -p 8080:8080 -e RUNTIME_NET=internal \
+  -e PG_URL_INTERNAL='postgres://runveil:runveil@host.docker.internal:5432/runveil?sslmode=disable' \
+  runveil-api
+
+# UI — Angular build served by nginx; proxies /v1 + /health to API_UPSTREAM:
+docker build -t runveil-ui dashboard/runveil-dashboard
+docker run --rm -p 4200:80 -e API_UPSTREAM=http://host.docker.internal:8080 runveil-ui
+```
+On Linux add `--add-host=host.docker.internal:host-gateway` to the `run` commands.
 
 ### Database Migrations (Goose, via CLI)
 ```bash

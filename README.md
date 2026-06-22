@@ -132,12 +132,22 @@ scan history, surface runtime evidence, and show reachable/dormant trends across
 
 ### Local development
 
-Bring up the backing services (Postgres, Neo4j, NATS):
+**Postgres is your system-installed PostgreSQL** (`localhost:5432`) — not a
+container, so there's no Docker dependency for the database. Create the role and
+database once:
+
+```bash
+# In psql, as a superuser:
+CREATE USER runveil WITH PASSWORD 'runveil';
+CREATE DATABASE runveil OWNER runveil;
+```
+
+Bring up the auxiliary services (Neo4j, NATS) — Postgres is **not** in compose:
 
 ```bash
 cd deploy/compose
 export COMPOSE_PROJECT_NAME=runveil   # Windows: set COMPOSE_PROJECT_NAME=runveil
-docker compose up -d
+docker compose up -d                  # Neo4j + NATS only
 ```
 
 Apply migrations and start the API:
@@ -148,6 +158,9 @@ export POSTGRES_URL="postgres://runveil:runveil@localhost:5432/runveil?sslmode=d
 cd services/api && go run .          # serves on :8080
 curl http://localhost:8080/health    # -> {"ok":true}
 ```
+
+To run the API and dashboard as containers instead (still against host
+Postgres), see the Docker build/run commands in [CLAUDE.md](CLAUDE.md).
 
 Post a scan to a project:
 

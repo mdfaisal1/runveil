@@ -1,0 +1,12 @@
+# Build context for the API image is the repo root. Keep it lean.
+.git
+.github
+**/node_modules
+dashboard/runveil-dashboard/dist
+dashboard/runveil-dashboard/.angular
+agent/runveil-agent/target
+*.exe
+runveil
+runveil.exe
+**/*.log
+deploy/compose/neo4j

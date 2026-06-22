@@ -11,9 +11,10 @@ type Config struct {
 	// host|internal. If "internal", use Docker DNS (postgres, neo4j, nats).
 	RuntimeNet string `env:"RUNTIME_NET" envDefault:"host"`
 
-	// Postgres
+	// Postgres — system-installed, not Docker. In "internal" mode (API running
+	// inside a container) the host DB is reached via host.docker.internal.
 	PgHostURL     string `env:"PG_URL_HOST" envDefault:"postgres://runveil:runveil@localhost:5432/runveil?sslmode=disable"`
-	PgInternalURL string `env:"PG_URL_INTERNAL" envDefault:"postgres://runveil:runveil@postgres:5432/runveil?sslmode=disable"`
+	PgInternalURL string `env:"PG_URL_INTERNAL" envDefault:"postgres://runveil:runveil@host.docker.internal:5432/runveil?sslmode=disable"`
 
 	// Neo4j
 	Neo4jHostURI     string `env:"NEO4J_URI_HOST" envDefault:"bolt://localhost:7687"`

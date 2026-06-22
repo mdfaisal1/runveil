@@ -7,8 +7,9 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "runveil",
-	Short: "runveil CLI",
+	Use:     "runveil",
+	Short:   "runveil CLI",
+	Version: version,
 }
 
 func Execute() {
@@ -21,6 +22,7 @@ func init() {
 	// Register subcommands that don't self-register
 	rootCmd.AddCommand(NewMigrateCmd())
 	rootCmd.AddCommand(NewKeysCmd())
+	rootCmd.AddCommand(NewVersionCmd())
 	// If your scan command self-registers in scan.go via init(), no need to add it here.
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(findingsCmd)

@@ -139,7 +139,9 @@ func derivePackagesFromReport(raw json.RawMessage) []IngestPkg {
 }
 
 func registerIngest(r *gin.Engine, db *sql.DB) {
-	r.POST("/v1/projects/:slug/scans/ingest", func(c *gin.Context) {
+	// CLI-only, data-integrity-critical route: require an API key so a fake
+	// scan can't be ingested by anyone who can reach the port.
+	r.POST("/v1/projects/:slug/scans/ingest", requireAPIKey(db), func(c *gin.Context) {
 		slug := c.Param("slug")
 
 		// Read the raw body once so we can:

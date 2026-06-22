@@ -39,19 +39,29 @@ runveil migrate up                 # Apply all pending migrations
 runveil migrate status             # Check migration state
 ```
 
+### API Keys (Goose-style direct-to-Postgres, via CLI)
+```bash
+runveil keys create --project <slug> --name ci-github   # Mint a key (printed once)
+```
+
 ## Architecture
 
 Runveil is a **vulnerability scanning and tracking platform** with four distinct components:
 
 ### CLI (`/cli`)
-Cobra-based CLI that scans `package-lock.json` files against the [OSV API](https://osv.dev/). Key commands: `scan`, `findings`, `doctor` (connectivity check), `migrate`. Scan results can be output as JSON/Markdown or posted to the API. Supports policy gating via `--fail-on critical|high|medium|low`.
+Cobra-based CLI that scans `package-lock.json` files against the [OSV API](https://osv.dev/). Key commands: `scan`, `findings`, `doctor` (connectivity check), `migrate`, `keys`. Scan results can be output as JSON/Markdown or posted to the API. Supports policy gating via `--fail-on critical|high|medium|low`. When posting to the API, the CLI sends `Authorization: Bearer $RUNVEIL_API_TOKEN`.
 
 ### API Service (`/services/api`)
-Gin HTTP server on `:8080`. Handlers are flat files at the package root — `ingest.go`, `findings.go`, `projects.go`, `runtime.go`. Key routes:
-- `POST /v1/projects/:slug/ingest` — receive scan results from CLI
-- `POST /v1/projects/:slug/runtime/observe` — receive runtime observations from agent
+Gin HTTP server on `:8080`. Handlers are flat files at the package root — `ingest.go`, `findings.go`, `projects.go`, `runtime.go`, `auth.go`, `hotspots.go`, `evidence.go`, `notifications.go`, `risk.go`. Key routes:
+- `POST /v1/projects/:slug/scans/ingest` — receive scan results from CLI **(requires API key)**
+- `POST /v1/projects/:slug/runtime/observe` — receive runtime observations from agent (requires `X-Runveil-Token`)
 - `GET /v1/projects/:slug/findings` — query stored findings
+- `GET /v1/projects/:slug/hotspots` — risk-ranked findings (latest scan)
 Requires `POSTGRES_URL` env var. Shared infra lives in `/pkg/infra`.
+
+**Authentication (v1).** Two independent credential paths:
+- **API keys** (`api_keys` table, migration 0010) — minted by `runveil keys create`, SHA-256-hashed at rest, `rv_`-prefixed. The `requireAPIKey` middleware in `auth.go` guards **only `scans/ingest`** (the CLI-only, data-integrity-critical route). Read endpoints, `PUT settings`, and project-create are **intentionally still open** — the Angular dashboard is a browser client with no credential and only issues GETs. Locking those is a follow-on that requires the dashboard to ship a credential.
+- **Runtime token** (`projects.runtime_token`) — separate, used only by the Rust agent on `runtime/observe`. Deliberately not folded into `api_keys`.
 
 ### Dashboard (`/dashboard/runveil-dashboard`)
 Angular 19 standalone app. Routes: `/projects` → `/projects/:slug` → `/projects/:slug/findings`. API calls go through the proxy configured in `proxy.conf.json` (→ `http://localhost:8080`). Uses TailwindCSS for styling. Angular services in `src/app/core/`.

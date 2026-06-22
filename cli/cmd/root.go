@@ -20,6 +20,7 @@ func Execute() {
 func init() {
 	// Register subcommands that don't self-register
 	rootCmd.AddCommand(NewMigrateCmd())
+	rootCmd.AddCommand(NewKeysCmd())
 	// If your scan command self-registers in scan.go via init(), no need to add it here.
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(findingsCmd)

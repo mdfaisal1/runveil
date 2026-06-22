@@ -78,7 +78,7 @@ runveil keys create --project <slug> --name ci-github   # Mint a key (printed on
 Runveil is a **vulnerability scanning and tracking platform** with four distinct components:
 
 ### CLI (`/cli`)
-Cobra-based CLI that scans `package-lock.json` files against the [OSV API](https://osv.dev/). Key commands: `scan`, `findings`, `doctor` (connectivity check), `migrate`, `keys`. Scan results can be output as JSON/Markdown or posted to the API. Supports policy gating via `--fail-on critical|high|medium|low`. When posting to the API, the CLI sends `Authorization: Bearer $RUNVEIL_API_TOKEN`.
+Cobra-based CLI that scans `package-lock.json` files against the [OSV API](https://osv.dev/). Key commands: `scan`, `findings`, `evidence` (runtime-evidence summary for a finding), `doctor` (connectivity check), `migrate`, `keys`, `version`. Scan results can be output as JSON/Markdown or posted to the API. Supports policy gating via `--fail-on critical|high|medium|low`. When posting to the API, the CLI sends `Authorization: Bearer $RUNVEIL_API_TOKEN`.
 
 ### API Service (`/services/api`)
 Gin HTTP server on `:8080`. Handlers are flat files at the package root — `ingest.go`, `findings.go`, `projects.go`, `runtime.go`, `auth.go`, `hotspots.go`, `evidence.go`, `notifications.go`, `risk.go`. Key routes:

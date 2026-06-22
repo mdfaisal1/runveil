@@ -23,6 +23,7 @@ func init() {
 	rootCmd.AddCommand(NewMigrateCmd())
 	rootCmd.AddCommand(NewKeysCmd())
 	rootCmd.AddCommand(NewVersionCmd())
+	rootCmd.AddCommand(NewEvidenceCmd())
 	// If your scan command self-registers in scan.go via init(), no need to add it here.
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(findingsCmd)

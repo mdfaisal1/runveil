@@ -177,6 +177,19 @@ The Rust agent in [agent/runveil-agent](agent/runveil-agent) reports packages ob
 executing at runtime to `/v1/projects/:slug/runtime/observe`, upgrading findings to
 confirmed-reachable with live evidence (`evidence_count`, `last_seen_at`).
 
+```bash
+# one-shot
+runveil-agent --project-slug my-service --packages-file observed.json \
+  --runtime-token "$RUNVEIL_RUNTIME_TOKEN" --environment prod
+
+# continuous: re-read + flush every 30s, with a local retry queue
+runveil-agent --project-slug my-service --packages-file observed.json --watch 30
+```
+
+It retries on network failure (exponential backoff), tags evidence with
+`--environment`, and in `--watch` mode keeps unsent batches queued until the API
+is reachable again.
+
 ---
 
 ## Architecture

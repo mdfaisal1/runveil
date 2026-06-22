@@ -96,7 +96,11 @@ Requires `POSTGRES_URL` env var. Shared infra lives in `/pkg/infra`.
 Angular 19 standalone app. Routes: `/projects` → `/projects/:slug` → `/projects/:slug/findings`. API calls go through the proxy configured in `proxy.conf.json` (→ `http://localhost:8080`). Uses TailwindCSS for styling. Angular services in `src/app/core/`.
 
 ### Runtime Agent (`/agent/runveil-agent`)
-Rust binary that reads a JSON file of observed packages and posts them to the API's `/runtime/observe` endpoint. Requires `--project-slug`, `--api-base`, `--runtime-token`, `--packages-file` flags.
+Rust binary (v0.2) that reads a JSON file of observed packages and reports them to the API's `/runtime/observe` endpoint. Flags (each also has a `RUNVEIL_*` env var): `--project-slug`, `--api-base`, `--runtime-token`, `--packages-file`, `--environment` (default `dev-local`), `--watch <secs>`, `--max-retries`, `-v`.
+- **One-shot** (default): read file → send once, with exponential-backoff retry.
+- **Watch** (`--watch N`): re-read + flush every N seconds; maintains a local queue that retains failed batches and retries them on the next tick.
+- Retries network errors / 5xx / 429; gives up on other 4xx (e.g. bad token). Structured logging via `log`/`env_logger` (`RUST_LOG` or `-v`).
+- Instrumentation is file-based for now (a sidecar produces the packages file); the queue/flush/retry plumbing is what the agent owns. `cargo build --release` from `agent/runveil-agent/`.
 
 ### Shared Packages (`/pkg`)
 - `pkg/infra` — config parsing from env vars, PostgreSQL connection (`db.go`), OSV HTTP client (`osvclient.go`), Neo4j and NATS connectors

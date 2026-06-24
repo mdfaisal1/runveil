@@ -1,0 +1,68 @@
+<div class="relative flex min-h-screen items-center justify-center px-6 py-12">
+    <!-- Ambient glow -->
+    <div class="pointer-events-none absolute -inset-24 opacity-35 blur-3xl" style="
+        background:
+          radial-gradient(900px 500px at 25% 25%, rgba(249,115,22,0.16), transparent 60%),
+          radial-gradient(800px 500px at 75% 40%, rgba(56,189,248,0.12), transparent 60%);
+      "></div>
+
+    <div class="relative w-full max-w-md rounded-2xl border border-white/10 bg-white/[0.03] p-8 shadow-2xl">
+        <div class="text-xs uppercase tracking-[0.25em] text-slate-500">Runveil</div>
+        <h1 class="mt-2 text-2xl font-semibold text-slate-50">
+            {{ mode() === 'login' ? 'Sign in' : 'Create your account' }}
+        </h1>
+        <p class="mt-2 text-sm text-slate-400">
+            {{ mode() === 'login' ? 'Access your organization\'s vulnerability posture.' : 'You\'ll get a new organization to start.' }}
+        </p>
+
+        <form class="mt-6 space-y-4" (ngSubmit)="submit()">
+            <div *ngIf="mode() === 'signup'">
+                <label class="text-xs uppercase tracking-widest text-slate-400">Name</label>
+                <input class="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-orange-500/40"
+                    [(ngModel)]="name" name="name" placeholder="Ada Lovelace" autocomplete="name" />
+            </div>
+
+            <div>
+                <label class="text-xs uppercase tracking-widest text-slate-400">Email</label>
+                <input class="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-orange-500/40"
+                    [(ngModel)]="email" name="email" type="email" required placeholder="you@company.com" autocomplete="email" />
+            </div>
+
+            <div>
+                <label class="text-xs uppercase tracking-widest text-slate-400">Password</label>
+                <input class="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-orange-500/40"
+                    [(ngModel)]="password" name="password" type="password" required placeholder="••••••••" autocomplete="current-password" />
+            </div>
+
+            <div *ngIf="mode() === 'signup'">
+                <label class="text-xs uppercase tracking-widest text-slate-400">Organization name</label>
+                <input class="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm text-slate-100 outline-none focus:border-orange-500/40"
+                    [(ngModel)]="orgName" name="orgName" placeholder="Acme Inc (optional)" />
+            </div>
+
+            <div *ngIf="error()" class="rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-200">
+                {{ error() }}
+            </div>
+
+            <button type="submit" [disabled]="busy()"
+                class="w-full rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2.5 text-sm font-medium text-orange-200 transition hover:border-orange-500/40 hover:bg-orange-500/15 disabled:opacity-50">
+                {{ busy() ? 'Please wait…' : (mode() === 'login' ? 'Sign in' : 'Create account') }}
+            </button>
+        </form>
+
+        <div class="my-5 flex items-center gap-3 text-xs text-slate-500">
+            <span class="h-px flex-1 bg-white/10"></span>OR<span class="h-px flex-1 bg-white/10"></span>
+        </div>
+
+        <button type="button" (click)="continueWithSso()" [disabled]="busy()"
+            class="w-full rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:border-white/20 hover:bg-white/[0.05] disabled:opacity-50">
+            Continue with SSO
+        </button>
+        <p class="mt-2 text-center text-xs text-slate-500">Uses your organization's identity provider, matched by email domain.</p>
+
+        <button type="button" (click)="toggleMode()"
+            class="mt-5 w-full text-center text-sm text-slate-400 transition hover:text-slate-200">
+            {{ mode() === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in' }}
+        </button>
+    </div>
+</div>

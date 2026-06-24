@@ -29,6 +29,7 @@ func NewKeysCmd() *cobra.Command {
 func newKeysCreateCmd() *cobra.Command {
 	var (
 		projectSlug string
+		orgSlug     string
 		name        string
 		scope       string
 	)
@@ -58,12 +59,18 @@ func newKeysCreateCmd() *cobra.Command {
 
 			ctx := context.Background()
 
-			// Resolve the project id when a slug is given so the key is scoped.
-			var projectID sql.NullString
+			// Resolve project + org so the key is tenant-scoped. A key MUST belong
+			// to an org (ingest stamps a project's org from the key). If --project
+			// is given, the key inherits that project's org; otherwise resolve --org
+			// (defaulting to "default").
+			var (
+				projectID sql.NullString
+				orgID     string
+			)
 			if s := strings.TrimSpace(projectSlug); s != "" {
-				var id string
+				var id, oid string
 				err := db.QueryRowContext(ctx,
-					`SELECT id FROM projects WHERE slug = $1`, s).Scan(&id)
+					`SELECT id, org_id FROM projects WHERE slug = $1`, s).Scan(&id, &oid)
 				if err == sql.ErrNoRows {
 					return fmt.Errorf("project %q not found", s)
 				}
@@ -71,6 +78,20 @@ func newKeysCreateCmd() *cobra.Command {
 					return fmt.Errorf("looking up project: %w", err)
 				}
 				projectID = sql.NullString{String: id, Valid: true}
+				orgID = oid
+			} else {
+				slug := strings.TrimSpace(orgSlug)
+				if slug == "" {
+					slug = "default"
+				}
+				err := db.QueryRowContext(ctx,
+					`SELECT id FROM organizations WHERE slug = $1`, slug).Scan(&orgID)
+				if err == sql.ErrNoRows {
+					return fmt.Errorf("organization %q not found (run `runveil admin bootstrap` first)", slug)
+				}
+				if err != nil {
+					return fmt.Errorf("looking up org: %w", err)
+				}
 			}
 
 			plaintext, prefix, hash, err := infra.GenerateAPIKey()
@@ -84,9 +105,9 @@ func newKeysCreateCmd() *cobra.Command {
 			}
 
 			if _, err := db.ExecContext(ctx, `
-				INSERT INTO api_keys (project_id, name, key_hash, key_prefix, scope)
-				VALUES ($1, $2, $3, $4, $5)
-			`, projectID, label, hash, prefix, scope); err != nil {
+				INSERT INTO api_keys (project_id, org_id, name, key_hash, key_prefix, scope)
+				VALUES ($1, $2, $3, $4, $5, $6)
+			`, projectID, orgID, label, hash, prefix, scope); err != nil {
 				return fmt.Errorf("storing api key: %w", err)
 			}
 
@@ -106,7 +127,8 @@ func newKeysCreateCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&projectSlug, "project", "", "scope the key to a project slug (optional)")
+	cmd.Flags().StringVar(&projectSlug, "project", "", "scope the key to a project slug (optional; inherits the project's org)")
+	cmd.Flags().StringVar(&orgSlug, "org", "", "org slug the key belongs to when no --project is given (default \"default\")")
 	cmd.Flags().StringVar(&name, "name", "", "human-readable label for the key (e.g. ci-github)")
 	cmd.Flags().StringVar(&scope, "scope", "ingest", "key scope: ingest|read|admin")
 	return cmd

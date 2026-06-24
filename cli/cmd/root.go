@@ -24,6 +24,8 @@ func init() {
 	rootCmd.AddCommand(NewKeysCmd())
 	rootCmd.AddCommand(NewVersionCmd())
 	rootCmd.AddCommand(NewEvidenceCmd())
+	rootCmd.AddCommand(NewComponentsCmd())
+	rootCmd.AddCommand(NewAdminCmd())
 	// If your scan command self-registers in scan.go via init(), no need to add it here.
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(findingsCmd)

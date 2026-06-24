@@ -56,12 +56,15 @@ func fetchEvidence(projectSlug, findingID, environment string) (*evidenceRespons
 	u := fmt.Sprintf("%s/v1/projects/%s/findings/%s/evidence?%s",
 		base, url.PathEscape(projectSlug), url.PathEscape(findingID), q.Encode())
 
-	resp, err := http.Get(u)
+	resp, err := infra.AuthedGet(u)
 	if err != nil {
 		return nil, fmt.Errorf("calling API: %w", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("unauthorized — set RUNVEIL_API_TOKEN to a read/admin key (runveil keys create --scope read)")
+	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("API %s returned %s: %s", u, resp.Status, string(body))

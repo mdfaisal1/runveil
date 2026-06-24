@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,12 +13,13 @@ import (
 //
 //	GET /v1/projects/:slug/hotspots?limit=N   (default 20, max 200)
 func registerHotspots(r *gin.Engine, db *sql.DB) {
-	r.GET("/v1/projects/:slug/hotspots", func(c *gin.Context) {
+	r.GET("/v1/projects/:slug/hotspots", requireProjectOrg(db), func(c *gin.Context) {
 		ctx := c.Request.Context()
 		slug := c.Param("slug")
 		limit := clampInt(c.Query("limit"), 20, 1, 200)
+		componentParam := strings.ToLower(strings.TrimSpace(c.Query("component")))
 
-		rows, err := db.QueryContext(ctx, `
+		query := `
 SELECT f.id, p.name, p.version, p.ecosystem,
        v.vuln_id, v.summary, v.severity,
        f.reachable, f.is_dev, f.is_direct,
@@ -27,9 +29,13 @@ JOIN packages p        ON p.id = f.package_id
 JOIN scans s           ON s.id = p.scan_id
 JOIN projects proj     ON proj.id = s.project_id
 JOIN vulnerabilities v ON v.id = f.vulnerability_id
-WHERE proj.slug = $1
-  AND s.id = (SELECT id FROM scans WHERE project_id = proj.id ORDER BY created_at DESC LIMIT 1)
-`, slug)
+WHERE proj.slug = $1` + currentScanClause(componentParam != "") + `
+`
+		args := []any{slug}
+		if componentParam != "" {
+			args = append(args, componentParam)
+		}
+		rows, err := db.QueryContext(ctx, query, args...)
 		if err != nil {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to query hotspots", "details": err.Error()})
 			return

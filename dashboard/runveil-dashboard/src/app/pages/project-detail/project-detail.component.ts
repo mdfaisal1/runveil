@@ -3,7 +3,14 @@ import { Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { HttpClient, HttpHeaders } from '@angular/common/http';
-import { RunveilApiService, ScanView } from '../../core/api/runveil-api.service';
+import { RunveilApiService, ScanView, TrendSummary, ComponentView } from '../../core/api/runveil-api.service';
+
+type TrendBar = {
+  at: string;
+  total: number;
+  reachable: number;
+  segments: { cls: string; pct: number; label: string; count: number }[];
+};
 
 type ModalMode = 'ingest' | 'observe';
 
@@ -32,6 +39,20 @@ export class ProjectDetailComponent {
   scans: ScanView[] = [];
   scansLoaded = false;
 
+  // trends (per-scan counts over time)
+  trendBars: TrendBar[] = [];
+  trendSummary: TrendSummary | null = null;
+  trendsLoaded = false;
+
+  // components (manifest-declared services)
+  components: ComponentView[] = [];
+  componentsLoaded = false;
+  newComponentKey = '';
+  newComponentName = '';
+  newComponentKind = 'service';
+  componentBusy = false;
+  componentMsg = '';
+
   // Slack notifications
   slackWebhook = '';
   slackConfigured = false;
@@ -52,6 +73,92 @@ export class ProjectDetailComponent {
     this.loadCounts();
     this.loadScans();
     this.loadSettings();
+    this.loadTrends();
+    this.loadComponents();
+  }
+
+  loadComponents() {
+    if (!this.slug) return;
+    this.api.getComponents(this.slug).subscribe({
+      next: (res) => {
+        this.components = res.components ?? [];
+        this.componentsLoaded = true;
+      },
+      error: () => {
+        this.componentsLoaded = true;
+      },
+    });
+  }
+
+  createComponent() {
+    const key = this.newComponentKey.trim().toLowerCase();
+    if (!key) {
+      this.componentMsg = 'Key is required.';
+      return;
+    }
+    this.componentBusy = true;
+    this.componentMsg = '';
+    this.api
+      .createComponent(this.slug, {
+        key,
+        name: this.newComponentName.trim(),
+        kind: this.newComponentKind.trim() || 'service',
+      })
+      .subscribe({
+        next: () => {
+          this.componentBusy = false;
+          this.newComponentKey = '';
+          this.newComponentName = '';
+          this.newComponentKind = 'service';
+          this.componentMsg = '';
+          this.loadComponents();
+        },
+        error: (e) => {
+          this.componentBusy = false;
+          this.componentMsg = e?.error?.error || `Failed to register component (${e?.status || 'unknown'})`;
+        },
+      });
+  }
+
+  severityClass(sev: string): string {
+    switch ((sev || '').toUpperCase()) {
+      case 'CRITICAL':
+        return 'border-rose-500/30 bg-rose-500/10 text-rose-200';
+      case 'HIGH':
+        return 'border-orange-500/30 bg-orange-500/10 text-orange-200';
+      case 'MEDIUM':
+        return 'border-amber-400/30 bg-amber-400/10 text-amber-100';
+      case 'LOW':
+        return 'border-sky-400/20 bg-sky-400/10 text-sky-100';
+      default:
+        return 'border-white/10 bg-white/[0.03] text-slate-400';
+    }
+  }
+
+  loadTrends() {
+    if (!this.slug) return;
+    this.api.getTrends(this.slug).subscribe({
+      next: (res) => {
+        const points = res.points ?? [];
+        const max = Math.max(1, ...points.map((p) => p.total));
+        this.trendBars = points.map((p) => ({
+          at: p.at,
+          total: p.total,
+          reachable: p.reachable,
+          segments: [
+            { cls: 'bg-rose-500/80', pct: (p.critical / max) * 100, label: 'critical', count: p.critical },
+            { cls: 'bg-orange-500/80', pct: (p.high / max) * 100, label: 'high', count: p.high },
+            { cls: 'bg-amber-400/80', pct: (p.medium / max) * 100, label: 'medium', count: p.medium },
+            { cls: 'bg-sky-400/70', pct: (p.low / max) * 100, label: 'low', count: p.low },
+          ],
+        }));
+        this.trendSummary = res.summary;
+        this.trendsLoaded = true;
+      },
+      error: () => {
+        this.trendsLoaded = true;
+      },
+    });
   }
 
   loadScans() {
@@ -163,6 +270,8 @@ export class ProjectDetailComponent {
           this.showToast(`Ingested ✅ scan_id=${res?.scan_id || 'ok'} (findings: ${res?.findings ?? '—'})`);
           this.loadCounts();
           this.loadScans();
+          this.loadTrends();
+          this.loadComponents();
         },
         error: (e) => {
           this.busy = false;
@@ -251,6 +360,10 @@ export class ProjectDetailComponent {
       null,
       2
     );
+  }
+
+  abs(n: number): number {
+    return Math.abs(n);
   }
 
   private showToast(message: string) {

@@ -27,7 +27,7 @@ type slackFinding struct {
 //	PUT /v1/projects/:slug/settings   { "slack_webhook_url": "https://hooks.slack.com/..." }
 //	GET /v1/projects/:slug/settings   -> { "slack_webhook_configured": bool }
 func registerNotifications(r *gin.Engine, db *sql.DB) {
-	r.PUT("/v1/projects/:slug/settings", func(c *gin.Context) {
+	r.PUT("/v1/projects/:slug/settings", requireProjectOrg(db), requireRole("admin"), func(c *gin.Context) {
 		ctx := c.Request.Context()
 		slug := c.Param("slug")
 
@@ -58,7 +58,7 @@ func registerNotifications(r *gin.Engine, db *sql.DB) {
 		c.JSON(http.StatusOK, gin.H{"ok": true, "slack_webhook_configured": url != ""})
 	})
 
-	r.GET("/v1/projects/:slug/settings", func(c *gin.Context) {
+	r.GET("/v1/projects/:slug/settings", requireProjectOrg(db), func(c *gin.Context) {
 		ctx := c.Request.Context()
 		slug := c.Param("slug")
 		var url sql.NullString

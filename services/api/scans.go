@@ -29,7 +29,7 @@ type ScansResponse struct {
 
 // registerScans exposes a project's scan history, newest first.
 func registerScans(r *gin.Engine, db *sql.DB) {
-	r.GET("/v1/projects/:slug/scans", func(c *gin.Context) {
+	r.GET("/v1/projects/:slug/scans", requireProjectOrg(db), func(c *gin.Context) {
 		ctx := c.Request.Context()
 		slug := c.Param("slug")
 

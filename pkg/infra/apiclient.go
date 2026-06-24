@@ -26,12 +26,14 @@ func newAPI() *apiClient {
 // ScanIngestPayload matches the API ingest contract.
 type ScanIngestPayload struct {
 	ProjectSlug string          `json:"project_slug"`
-	Source      string          `json:"source"` // "cli"
-	Report      json.RawMessage `json:"report"` // JSON report bytes
+	Source      string          `json:"source"`              // "cli"
+	Component   string          `json:"component,omitempty"` // optional manifest-declared component key
+	Report      json.RawMessage `json:"report"`              // JSON report bytes
 }
 
-// PostScan posts a JSON report to /v1/projects/:slug/scans/ingest.
-func PostScan(ctx context.Context, projectSlug string, reportJSON []byte) error {
+// PostScan posts a JSON report to /v1/projects/:slug/scans/ingest. When
+// component is non-empty the scan is attached to that (pre-registered) component.
+func PostScan(ctx context.Context, projectSlug, component string, reportJSON []byte) error {
 	if len(reportJSON) == 0 {
 		return fmt.Errorf("empty report payload")
 	}
@@ -39,6 +41,7 @@ func PostScan(ctx context.Context, projectSlug string, reportJSON []byte) error 
 	body, err := json.Marshal(ScanIngestPayload{
 		ProjectSlug: projectSlug,
 		Source:      "cli",
+		Component:   component,
 		Report:      reportJSON,
 	})
 	if err != nil {
@@ -63,4 +66,18 @@ func PostScan(ctx context.Context, projectSlug string, reportJSON []byte) error 
 		return fmt.Errorf("ingest failed: status=%d", resp.StatusCode)
 	}
 	return nil
+}
+
+// AuthedGet issues a GET to a full URL, attaching the Runveil API token as a
+// Bearer credential when one is configured. Read routes are org-scoped, so CLI
+// read commands must present a key (RUNVEIL_API_TOKEN) just like ingest.
+func AuthedGet(url string) (*http.Response, error) {
+	req, err := http.NewRequest(http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	if tok := APIToken(); tok != "" {
+		req.Header.Set("Authorization", "Bearer "+tok)
+	}
+	return (&http.Client{Timeout: 20 * time.Second}).Do(req)
 }

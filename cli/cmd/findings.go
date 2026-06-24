@@ -70,7 +70,10 @@ var findingsCmd = &cobra.Command{
 	Short: "Show findings for a project from the Runveil API",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if findingsProject == "" {
-			return fmt.Errorf("--project is required")
+			findingsProject = infra.ConfigProject()
+		}
+		if findingsProject == "" {
+			return fmt.Errorf("--project is required (or set it: runveil config set project <slug>)")
 		}
 
 		fr, err := fetchFindings(findingsProject)

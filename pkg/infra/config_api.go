@@ -6,9 +6,11 @@ import (
 	"strings"
 )
 
-// APIBaseURL returns the Runveil API base.
-// Canonical env: RUNVEIL_API_BASE
-// Backward-compatible fallback: RUNVEIL_API_URL
+// APIBaseURL returns the Runveil API base. Precedence: env > config file >
+// built-in default (an empty env var falls through, never shadows the file).
+//
+//	env: RUNVEIL_API_BASE (canonical) / RUNVEIL_API_URL (legacy)
+//	file: api_base in ~/.runveil/config.yaml
 func APIBaseURL() string {
 	if v := strings.TrimSpace(os.Getenv("RUNVEIL_API_BASE")); v != "" {
 		return strings.TrimRight(v, "/")
@@ -16,13 +18,21 @@ func APIBaseURL() string {
 	if v := strings.TrimSpace(os.Getenv("RUNVEIL_API_URL")); v != "" {
 		return strings.TrimRight(v, "/")
 	}
+	if v := strings.TrimSpace(FileConfig().APIBase); v != "" {
+		return strings.TrimRight(v, "/")
+	}
 	return "http://localhost:8080"
 }
 
-// APIToken returns the Runveil API token (Bearer/JWT).
-// Env: RUNVEIL_API_TOKEN
+// APIToken returns the Runveil API token. Precedence: env > config file.
+//
+//	env: RUNVEIL_API_TOKEN
+//	file: token in ~/.runveil/config.yaml
 func APIToken() string {
-	return os.Getenv("RUNVEIL_API_TOKEN")
+	if v := strings.TrimSpace(os.Getenv("RUNVEIL_API_TOKEN")); v != "" {
+		return v
+	}
+	return strings.TrimSpace(FileConfig().Token)
 }
 
 // CacheDir returns a writable directory for local cache.

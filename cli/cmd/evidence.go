@@ -90,6 +90,9 @@ func NewEvidenceCmd() *cobra.Command {
 		Use:   "evidence",
 		Short: "Summarize runtime evidence for a finding (counts by environment, package, day)",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if evidenceProject == "" {
+				evidenceProject = infra.ConfigProject()
+			}
 			if evidenceProject == "" || evidenceFinding_ == "" {
 				return fmt.Errorf("--project and --finding are required")
 			}

@@ -82,6 +82,9 @@ func newKeysCreateCmd() *cobra.Command {
 			} else {
 				slug := strings.TrimSpace(orgSlug)
 				if slug == "" {
+					slug = infra.ConfigOrg() // file fallback before built-in default
+				}
+				if slug == "" {
 					slug = "default"
 				}
 				err := db.QueryRowContext(ctx,

@@ -1,0 +1,83 @@
+{
+  "name": "runveil",
+  "displayName": "Runveil",
+  "description": "Surface Runveil vulnerability findings for a project inside VS Code.",
+  "version": "0.1.0",
+  "publisher": "runveil",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "configuration": {
+      "title": "Runveil",
+      "properties": {
+        "runveil.apiBase": {
+          "type": "string",
+          "default": "http://localhost:8080",
+          "description": "Base URL of the Runveil API."
+        },
+        "runveil.token": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "A **read-scoped** Runveil API key (`runveil keys create --scope read`). Read endpoints are org-scoped and require a credential."
+        },
+        "runveil.project": {
+          "type": "string",
+          "default": "",
+          "description": "Project slug whose findings to display."
+        }
+      }
+    },
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "runveil",
+          "title": "Runveil",
+          "icon": "media/runveil.svg"
+        }
+      ]
+    },
+    "views": {
+      "runveil": [
+        {
+          "id": "runveil.findings",
+          "name": "Findings"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "runveil.refreshFindings",
+        "title": "Runveil: Refresh Findings",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "runveil.setup",
+        "title": "Runveil: Configure (project + token)"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "runveil.refreshFindings",
+          "when": "view == runveil.findings",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p ./",
+    "build": "esbuild src/extension.ts --bundle --platform=node --external:vscode --outfile=dist/extension.js --format=cjs",
+    "vscode:prepublish": "npm run build"
+  },
+  "devDependencies": {
+    "@types/node": "^18.19.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.21.0",
+    "typescript": "^5.4.0"
+  }
+}

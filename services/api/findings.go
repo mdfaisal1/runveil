@@ -35,7 +35,7 @@ type FindingsResponse struct {
 
 // registerFindings registers the GET endpoint that lists findings for a project.
 func registerFindings(r *gin.Engine, db *sql.DB) {
-	r.GET("/v1/projects/:slug/findings", func(c *gin.Context) {
+	r.GET("/v1/projects/:slug/findings", requireProjectOrg(db), func(c *gin.Context) {
 		ctx := c.Request.Context()
 		slug := c.Param("slug")
 
@@ -45,6 +45,7 @@ func registerFindings(r *gin.Engine, db *sql.DB) {
 		// /v1/projects/:slug/findings?reachable=true&has_evidence=true
 		reachableParam := strings.ToLower(strings.TrimSpace(c.Query("reachable")))
 		hasEvidenceParam := strings.ToLower(strings.TrimSpace(c.Query("has_evidence")))
+		componentParam := strings.ToLower(strings.TrimSpace(c.Query("component")))
 
 		// --- 2) Build base query ---
 		// Schema (from your migrations):
@@ -71,8 +72,7 @@ JOIN packages p        ON p.id = f.package_id
 JOIN scans s           ON s.id = p.scan_id
 JOIN projects proj     ON proj.id = s.project_id
 JOIN vulnerabilities v ON v.id = f.vulnerability_id
-WHERE proj.slug = $1
-  AND s.id = (SELECT id FROM scans WHERE project_id = proj.id ORDER BY created_at DESC LIMIT 1)
+WHERE proj.slug = $1` + currentScanClause(componentParam != "") + `
 `
 
 		// --- 3) Apply filters when present ---
@@ -109,7 +109,11 @@ ORDER BY
 `
 
 		// --- 5) Execute query ---
-		rows, err := db.QueryContext(ctx, query, slug)
+		args := []any{slug}
+		if componentParam != "" {
+			args = append(args, componentParam)
+		}
+		rows, err := db.QueryContext(ctx, query, args...)
 		if err != nil {
 			// Log full error + query so we can see what broke (during dev)
 			log.Printf("query findings failed: %v\nSQL: %s", err, query)

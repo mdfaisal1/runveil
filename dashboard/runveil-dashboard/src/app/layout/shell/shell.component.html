@@ -18,9 +18,10 @@
                     Projects
                 </a>
 
-                <div class="mt-2 block rounded-xl px-3 py-2 text-sm text-rv-muted opacity-60">
-                    Settings (soon)
-                </div>
+                <a routerLink="/members" routerLinkActive="bg-white/5 text-rv-text"
+                    class="mt-1 block rounded-xl px-3 py-2 text-sm text-rv-muted hover:bg-white/5 hover:text-rv-text">
+                    Members
+                </a>
             </nav>
 
             <div class="px-5 py-5 mt-6 text-xs text-rv-muted">
@@ -34,8 +35,27 @@
             <header class="border-b border-rv-border bg-rv-bg/60 backdrop-blur">
                 <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
                     <div>
-                        <div class="text-sm text-rv-muted">Workspace</div>
-                        <div class="text-base font-semibold">Local Dev</div>
+                        <div class="text-sm text-rv-muted">Organization</div>
+                        <div class="flex items-center gap-2">
+                            <select *ngIf="user() as u" (change)="switchOrg($event)"
+                                class="rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-base font-semibold text-rv-text outline-none">
+                                <option *ngFor="let o of u.orgs" [value]="o.org_id" [selected]="o.org_id === u.org_id">
+                                    {{ o.name }}
+                                </option>
+                            </select>
+                            <span *ngIf="!user()" class="text-base font-semibold">Local Dev</span>
+                        </div>
+                    </div>
+
+                    <div *ngIf="user() as u" class="flex items-center gap-4">
+                        <div class="text-right">
+                            <div class="text-sm font-medium text-rv-text">{{ u.name || u.email }}</div>
+                            <div class="text-xs text-rv-muted">{{ u.email }} · {{ u.role }}</div>
+                        </div>
+                        <button type="button" (click)="logout()"
+                            class="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-slate-200 transition hover:border-white/15 hover:bg-white/[0.05]">
+                            Sign out
+                        </button>
                     </div>
                 </div>
             </header>

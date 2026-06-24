@@ -37,12 +37,15 @@ func fetchFindings(projectSlug string) (*findingsResponse, error) {
 	apiURL := infra.APIBaseURL()
 	url := fmt.Sprintf("%s/v1/projects/%s/findings", apiURL, projectSlug)
 
-	resp, err := http.Get(url)
+	resp, err := infra.AuthedGet(url)
 	if err != nil {
 		return nil, fmt.Errorf("calling API: %w", err)
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusUnauthorized {
+		return nil, fmt.Errorf("unauthorized — set RUNVEIL_API_TOKEN to a read/admin key (runveil keys create --scope read)")
+	}
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("API %s returned %s: %s", url, resp.Status, string(body))

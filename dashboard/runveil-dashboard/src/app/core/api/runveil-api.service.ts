@@ -83,6 +83,68 @@ export type ScansResponse = {
     scans: ScanView[];
 };
 
+export type TrendPoint = {
+    scan_id: string;
+    at: string;
+    total: number;
+    reachable: number;
+    critical: number;
+    high: number;
+    medium: number;
+    low: number;
+};
+
+export type TrendSummary = {
+    scans: number;
+    latest_total: number;
+    previous_total: number;
+    delta_total: number;
+    latest_reachable: number;
+    delta_reachable: number;
+};
+
+export type TrendsResponse = {
+    project_slug: string;
+    points: TrendPoint[];
+    summary: TrendSummary;
+};
+
+export type ComponentView = {
+    key: string;
+    name: string;
+    kind: string;
+    created_at: string;
+    finding_count: number;
+    reachable_count: number;
+    max_severity: string; // "" when no findings yet
+    last_scanned_at?: string | null;
+};
+
+export type ComponentsResponse = {
+    project_slug: string;
+    components: ComponentView[];
+};
+
+export type OrgMember = {
+    user_id: string;
+    email: string;
+    name: string;
+    role: string;
+    joined_at: string;
+};
+
+export type PendingInvite = {
+    email: string;
+    role: string;
+    created_at: string;
+    expires_at: string;
+};
+
+export type MembersResponse = {
+    members: OrgMember[];
+    pending_invites: PendingInvite[];
+};
+
 @Injectable({ providedIn: 'root' })
 export class RunveilApiService {
     private http = inject(HttpClient);
@@ -93,11 +155,12 @@ export class RunveilApiService {
 
     getFindings(
         slug: string,
-        opts?: { reachable?: 'true' | 'false'; hasEvidence?: 'true' | 'false' }
+        opts?: { reachable?: 'true' | 'false'; hasEvidence?: 'true' | 'false'; component?: string }
     ): Observable<FindingsResponse> {
         let params = new HttpParams();
         if (opts?.reachable) params = params.set('reachable', opts.reachable);
         if (opts?.hasEvidence) params = params.set('has_evidence', opts.hasEvidence);
+        if (opts?.component) params = params.set('component', opts.component);
 
         // IMPORTANT: use relative URL so your proxy keeps working
         return this.http.get<FindingsResponse>(`/v1/projects/${slug}/findings`, { params });
@@ -123,5 +186,54 @@ export class RunveilApiService {
 
     getScans(slug: string): Observable<ScansResponse> {
         return this.http.get<ScansResponse>(`/v1/projects/${slug}/scans`);
+    }
+
+    getTrends(slug: string, opts?: { limit?: number; component?: string }): Observable<TrendsResponse> {
+        let params = new HttpParams().set('limit', String(opts?.limit ?? 60));
+        if (opts?.component) params = params.set('component', opts.component);
+        return this.http.get<TrendsResponse>(`/v1/projects/${slug}/trends`, { params });
+    }
+
+    getComponents(slug: string): Observable<ComponentsResponse> {
+        return this.http.get<ComponentsResponse>(`/v1/projects/${slug}/components`);
+    }
+
+    createComponent(
+        slug: string,
+        body: { key: string; name?: string; kind?: string }
+    ): Observable<ComponentView> {
+        return this.http.post<ComponentView>(`/v1/projects/${slug}/components`, body);
+    }
+
+    // ---- org members (RBAC) ----
+    getMembers(): Observable<MembersResponse> {
+        return this.http.get<MembersResponse>('/v1/org/members');
+    }
+
+    addMember(email: string, role: string): Observable<any> {
+        return this.http.post('/v1/org/members', { email, role });
+    }
+
+    changeMemberRole(userId: string, role: string): Observable<any> {
+        return this.http.patch(`/v1/org/members/${userId}`, { role });
+    }
+
+    removeMember(userId: string): Observable<any> {
+        return this.http.delete(`/v1/org/members/${userId}`);
+    }
+
+    // ---- org SSO (OIDC) ----
+    getOidcConfig(): Observable<any> {
+        return this.http.get('/v1/org/oidc');
+    }
+
+    putOidcConfig(body: {
+        domain: string;
+        issuer: string;
+        client_id: string;
+        client_secret: string;
+        default_role?: string;
+    }): Observable<any> {
+        return this.http.put('/v1/org/oidc', body);
     }
 }

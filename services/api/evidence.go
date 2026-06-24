@@ -41,7 +41,7 @@ type EvidenceEvent struct {
 //
 //	GET /v1/projects/:slug/findings/:id/evidence?environment=&limit=&offset=
 func registerEvidence(r *gin.Engine, db *sql.DB) {
-	r.GET("/v1/projects/:slug/findings/:id/evidence", func(c *gin.Context) {
+	r.GET("/v1/projects/:slug/findings/:id/evidence", requireProjectOrg(db), func(c *gin.Context) {
 		ctx := c.Request.Context()
 		slug := c.Param("slug")
 		id := c.Param("id")

@@ -1,0 +1,138 @@
+<div class="mx-auto max-w-5xl">
+    <div class="flex items-start justify-between gap-6">
+        <div>
+            <div class="text-xs uppercase tracking-widest text-slate-400">Organization</div>
+            <h1 class="mt-2 text-2xl font-semibold text-slate-100">Members</h1>
+            <p class="mt-2 text-sm text-slate-400">
+                People with access to this organization's projects and findings.
+            </p>
+        </div>
+    </div>
+
+    <!-- Invite (admins+ only) -->
+    <div *ngIf="canManage()" class="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <div class="text-xs uppercase tracking-widest text-slate-400">Add a teammate</div>
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+            <input class="min-w-[240px] flex-1 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm text-slate-100 outline-none focus:border-orange-500/40"
+                placeholder="teammate@company.com" [(ngModel)]="inviteEmail" type="email" />
+            <select class="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-slate-200 outline-none"
+                [(ngModel)]="inviteRole">
+                <option *ngFor="let r of assignableRoles()" [value]="r">{{ r }}</option>
+            </select>
+            <button type="button" (click)="invite()" [disabled]="busy()"
+                class="rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2 text-sm font-medium text-orange-200 transition hover:border-orange-500/40 hover:bg-orange-500/15 disabled:opacity-50">
+                {{ busy() ? 'Adding…' : 'Add / Invite' }}
+            </button>
+        </div>
+        <div *ngIf="msg()" class="mt-3 break-all rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm text-emerald-200">
+            {{ msg() }}
+        </div>
+        <p class="mt-2 text-xs text-slate-500">
+            Existing users are added immediately. New emails get an invite token to use at signup.
+        </p>
+    </div>
+
+    <div *ngIf="error()" class="mt-4 rounded-xl border border-red-500/20 bg-red-500/5 p-3 text-sm text-red-200">
+        {{ error() }}
+    </div>
+
+    <!-- Members table -->
+    <div class="mt-6 overflow-hidden rounded-2xl border border-white/10">
+        <table class="w-full text-left text-sm">
+            <thead class="bg-white/[0.03] text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                    <th class="px-5 py-3">Member</th>
+                    <th class="px-5 py-3">Role</th>
+                    <th class="px-5 py-3">Joined</th>
+                    <th *ngIf="canManage()" class="px-5 py-3 text-right">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngIf="loading()">
+                    <td class="px-5 py-4 text-slate-400" [attr.colspan]="canManage() ? 4 : 3">Loading…</td>
+                </tr>
+                <tr *ngFor="let m of members()" class="border-t border-white/5">
+                    <td class="px-5 py-3">
+                        <div class="font-medium text-slate-100">{{ m.name || m.email }}</div>
+                        <div class="text-xs text-slate-500">{{ m.email }}</div>
+                    </td>
+                    <td class="px-5 py-3">
+                        <select *ngIf="canManage(); else roleBadgeTpl"
+                            class="rounded-lg border border-white/10 bg-white/[0.02] px-2 py-1 text-xs text-slate-200 outline-none"
+                            [ngModel]="m.role" (ngModelChange)="onRoleChange(m, $event)">
+                            <option *ngFor="let r of assignableRoles()" [value]="r">{{ r }}</option>
+                        </select>
+                        <ng-template #roleBadgeTpl>
+                            <span class="rounded-lg border px-2 py-0.5 text-xs" [ngClass]="roleBadge(m.role)">{{ m.role }}</span>
+                        </ng-template>
+                    </td>
+                    <td class="px-5 py-3 text-slate-400">{{ m.joined_at | date:'mediumDate' }}</td>
+                    <td *ngIf="canManage()" class="px-5 py-3 text-right">
+                        <button type="button" (click)="remove(m)"
+                            class="rounded-lg border border-white/10 bg-white/[0.02] px-3 py-1 text-xs text-slate-300 transition hover:border-red-500/30 hover:text-red-200">
+                            Remove
+                        </button>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- SSO (OIDC) config — admin/owner only -->
+    <div *ngIf="canManage()" class="mt-8 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <div class="flex items-center justify-between gap-4">
+            <div>
+                <div class="text-xs uppercase tracking-widest text-slate-400">Single sign-on (OIDC)</div>
+                <div class="mt-1 text-sm text-slate-300">
+                    Map an email domain to your identity provider. Users with that domain sign in via SSO.
+                </div>
+            </div>
+            <span class="rounded-xl border px-3 py-1 text-xs"
+                [ngClass]="sso()?.configured
+                    ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-200'
+                    : 'border-white/10 bg-white/[0.03] text-slate-400'">
+                {{ sso()?.configured ? 'Configured' : 'Not set' }}
+            </span>
+        </div>
+
+        <div class="mt-4 grid gap-3 sm:grid-cols-2">
+            <input class="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm text-slate-100 outline-none focus:border-orange-500/40"
+                placeholder="Email domain (acme.com)" [(ngModel)]="ssoForm.domain" />
+            <input class="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm text-slate-100 outline-none focus:border-orange-500/40"
+                placeholder="Issuer URL (https://accounts.google.com)" [(ngModel)]="ssoForm.issuer" />
+            <input class="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm text-slate-100 outline-none focus:border-orange-500/40"
+                placeholder="Client ID" [(ngModel)]="ssoForm.client_id" />
+            <input class="rounded-xl border border-white/10 bg-white/[0.02] px-4 py-2 text-sm text-slate-100 outline-none focus:border-orange-500/40"
+                placeholder="Client secret (write-only)" type="password" [(ngModel)]="ssoForm.client_secret" />
+            <select class="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-slate-200 outline-none"
+                [(ngModel)]="ssoForm.default_role">
+                <option value="viewer">new users join as viewer</option>
+                <option value="member">new users join as member</option>
+                <option value="admin">new users join as admin</option>
+            </select>
+            <button type="button" (click)="saveSso()"
+                class="rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2 text-sm font-medium text-orange-200 transition hover:border-orange-500/40 hover:bg-orange-500/15">
+                Save SSO config
+            </button>
+        </div>
+        <div *ngIf="ssoMsg()" class="mt-3 text-sm text-slate-300">{{ ssoMsg() }}</div>
+    </div>
+
+    <!-- Pending invites -->
+    <div *ngIf="invites().length > 0" class="mt-6">
+        <div class="text-xs uppercase tracking-widest text-slate-400">Pending invites</div>
+        <div class="mt-3 overflow-hidden rounded-2xl border border-white/10">
+            <table class="w-full text-left text-sm">
+                <tbody>
+                    <tr *ngFor="let iv of invites()" class="border-t border-white/5 first:border-t-0">
+                        <td class="px-5 py-3 text-slate-200">{{ iv.email }}</td>
+                        <td class="px-5 py-3">
+                            <span class="rounded-lg border px-2 py-0.5 text-xs" [ngClass]="roleBadge(iv.role)">{{ iv.role }}</span>
+                        </td>
+                        <td class="px-5 py-3 text-slate-500">expires {{ iv.expires_at | date:'mediumDate' }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>

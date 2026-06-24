@@ -42,13 +42,14 @@ func requireAPIKey(db *sql.DB) gin.HandlerFunc {
 		var (
 			id    string
 			scope string
+			orgID sql.NullString
 		)
 		err := db.QueryRowContext(c.Request.Context(), `
-			SELECT id, scope
+			SELECT id, scope, org_id
 			FROM api_keys
 			WHERE key_hash = $1
 			  AND revoked_at IS NULL
-		`, hash).Scan(&id, &scope)
+		`, hash).Scan(&id, &scope, &orgID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
@@ -68,6 +69,9 @@ func requireAPIKey(db *sql.DB) gin.HandlerFunc {
 
 		c.Set(ctxAPIKeyID, id)
 		c.Set(ctxAPIKeyScope, scope)
+		if orgID.Valid {
+			c.Set(ctxOrgID, orgID.String)
+		}
 		c.Next()
 	}
 }

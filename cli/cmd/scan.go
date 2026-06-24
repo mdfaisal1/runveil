@@ -73,11 +73,12 @@ type report struct {
 /********** flags **********/
 
 var (
-	flagPost    bool
-	flagProject string
-	flagFormat  string // json|md
-	flagOutPath string // file path for report
-	flagFailOn  string // none|low|medium|high|critical
+	flagPost      bool
+	flagProject   string
+	flagComponent string // optional manifest-declared component key
+	flagFormat    string // json|md
+	flagOutPath   string // file path for report
+	flagFailOn    string // none|low|medium|high|critical
 )
 
 /********** command **********/
@@ -256,7 +257,7 @@ var scanCmd = &cobra.Command{
 			}
 			ctx, cancel := context.WithTimeout(cmd.Context(), 20*time.Second)
 			defer cancel()
-			if err := infra.PostScan(ctx, flagProject, reportJSON); err != nil {
+			if err := infra.PostScan(ctx, flagProject, flagComponent, reportJSON); err != nil {
 				fmt.Printf("❌ post failed: %v\n", err)
 				os.Exit(1)
 			}
@@ -281,6 +282,7 @@ func init() {
 	// Existing flags
 	scanCmd.Flags().BoolVar(&flagPost, "post", false, "Send the generated report to Runveil API")
 	scanCmd.Flags().StringVar(&flagProject, "project", "", "Project slug (required with --post)")
+	scanCmd.Flags().StringVar(&flagComponent, "component", "", "Attach this scan to a registered component (key); requires --post")
 	scanCmd.Flags().StringVar(&flagFormat, "format", "json", "Report format: json|md")
 	scanCmd.Flags().StringVar(&flagOutPath, "out", "", "Write report to this file (otherwise stdout)")
 	scanCmd.Flags().StringVar(&flagFailOn, "fail-on", "none", "Fail build if max severity meets/exceeds this level: none|low|medium|high|critical")

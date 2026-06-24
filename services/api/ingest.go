@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -19,8 +20,18 @@ import (
 type IngestRequest struct {
 	Source       string      `json:"source"`        // e.g. "cli"
 	LockfilePath string      `json:"lockfile_path"` // optional
+	Component    string      `json:"component"`     // optional: key of a manifest-declared component
 	Packages     []IngestPkg `json:"packages"`      // list of packages with embedded vulns
 }
+
+// errComponentNotFound is returned by ingest when a scan references a component
+// key that hasn't been registered. Components are manifest-declared, so the
+// handler surfaces this as 404 rather than silently creating one.
+var errComponentNotFound = errors.New("component not found")
+
+// errWrongOrg is returned when an API key tries to ingest into a project that
+// belongs to a different organization (cross-tenant write).
+var errWrongOrg = errors.New("project belongs to a different organization")
 
 type IngestPkg struct {
 	Ecosystem string          `json:"ecosystem"` // npm, pypi, cargo...
@@ -162,8 +173,21 @@ func registerIngest(r *gin.Engine, db *sql.DB) {
 		_ = json.Unmarshal(body, &env)
 
 		ctx := c.Request.Context()
-		resp, err := ingest(ctx, db, slug, &req, env.Report)
+		orgID := c.GetString(ctxOrgID) // set by requireAPIKey from the key's org
+		if orgID == "" {
+			c.JSON(http.StatusForbidden, gin.H{"error": "API key is not scoped to an organization"})
+			return
+		}
+		resp, err := ingest(ctx, db, slug, orgID, &req, env.Report)
 		if err != nil {
+			if errors.Is(err, errComponentNotFound) {
+				c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+				return
+			}
+			if errors.Is(err, errWrongOrg) {
+				c.JSON(http.StatusForbidden, gin.H{"error": err.Error()})
+				return
+			}
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
@@ -173,7 +197,7 @@ func registerIngest(r *gin.Engine, db *sql.DB) {
 
 // ---------- core ingest transaction ----------
 
-func ingest(ctx context.Context, db *sql.DB, slug string, req *IngestRequest, rawReport json.RawMessage) (*IngestResponse, error) {
+func ingest(ctx context.Context, db *sql.DB, slug, orgID string, req *IngestRequest, rawReport json.RawMessage) (*IngestResponse, error) {
 	if slug == "" {
 		return nil, errors.New("missing project slug")
 	}
@@ -191,15 +215,39 @@ func ingest(ctx context.Context, db *sql.DB, slug string, req *IngestRequest, ra
 		}
 	}
 
-	// 1) upsert project
-	var projectID string
+	// 1) upsert project, scoped to the API key's org. A new project is created
+	// under that org; an existing project must already belong to it, else this
+	// is a cross-tenant write and we reject.
+	var (
+		projectID  string
+		projectOrg string
+	)
 	if err := tx.QueryRowContext(ctx, `
-		INSERT INTO projects (slug, name)
-		VALUES ($1, $1)
+		INSERT INTO projects (slug, name, org_id)
+		VALUES ($1, $1, $2)
 		ON CONFLICT (slug) DO UPDATE SET updated_at = now()
-		RETURNING id
-	`, slug).Scan(&projectID); err != nil {
+		RETURNING id, org_id
+	`, slug, orgID).Scan(&projectID, &projectOrg); err != nil {
 		return nil, err
+	}
+	if projectOrg != orgID {
+		return nil, errWrongOrg
+	}
+
+	// 1b) resolve optional component (manifest-declared: must already exist)
+	var componentID sql.NullString
+	if key := strings.TrimSpace(strings.ToLower(req.Component)); key != "" {
+		var id string
+		err := tx.QueryRowContext(ctx,
+			`SELECT id FROM components WHERE project_id = $1 AND key = $2`,
+			projectID, key).Scan(&id)
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("%w: %q (register it first via POST /v1/projects/%s/components)", errComponentNotFound, key, slug)
+		}
+		if err != nil {
+			return nil, err
+		}
+		componentID = sql.NullString{String: id, Valid: true}
 	}
 
 	// 2) Decide what to store in scans.report_json
@@ -240,10 +288,10 @@ func ingest(ctx context.Context, db *sql.DB, slug string, req *IngestRequest, ra
 	// 3) create scan row (store the JSON in report_json; keep your existing fields)
 	var scanID string
 	if err := tx.QueryRowContext(ctx, `
-		INSERT INTO scans (project_id, status, source, lockfile_path, report_json, started_at, finished_at)
-		VALUES ($1, 'succeeded', $2, $3, $4::jsonb, now(), now())
+		INSERT INTO scans (project_id, status, source, lockfile_path, report_json, component_id, started_at, finished_at)
+		VALUES ($1, 'succeeded', $2, $3, $4::jsonb, $5, now(), now())
 		RETURNING id
-	`, projectID, req.Source, req.LockfilePath, reportJSON).Scan(&scanID); err != nil {
+	`, projectID, req.Source, req.LockfilePath, reportJSON, componentID).Scan(&scanID); err != nil {
 		return nil, err
 	}
 

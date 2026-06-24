@@ -54,6 +54,142 @@
         </a>
     </div>
 
+    <!-- Trends (per-scan counts over time) -->
+    <div class="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+                <div class="text-xs uppercase tracking-widest text-slate-400">Trends</div>
+                <div class="mt-1 text-sm text-slate-300">
+                    Findings per scan over time, stacked by severity. Reachability and counts are
+                    captured per scan — runtime risk is shown live on
+                    <a [routerLink]="['/projects', slug, 'hotspots']" class="text-orange-300 hover:text-orange-200">Hotspots</a>.
+                </div>
+            </div>
+            <div *ngIf="trendSummary && trendSummary.scans > 0" class="text-right">
+                <div class="text-3xl font-semibold text-slate-100">{{ trendSummary.latest_total }}</div>
+                <div class="text-xs"
+                    [ngClass]="trendSummary.delta_total > 0 ? 'text-rose-300'
+                        : trendSummary.delta_total < 0 ? 'text-emerald-300' : 'text-slate-400'">
+                    <ng-container *ngIf="trendSummary.scans > 1">
+                        {{ trendSummary.delta_total > 0 ? '↑' : trendSummary.delta_total < 0 ? '↓' : '—' }}
+                        {{ trendSummary.delta_total === 0 ? 'no change' : (abs(trendSummary.delta_total) + ' since last scan') }}
+                    </ng-container>
+                    <ng-container *ngIf="trendSummary.scans <= 1">latest scan</ng-container>
+                </div>
+            </div>
+        </div>
+
+        <div *ngIf="trendsLoaded && trendBars.length === 0" class="mt-4 text-sm text-slate-400">
+            No scans yet — ingest a scan to start building the trend.
+        </div>
+
+        <div *ngIf="trendBars.length > 0" class="mt-5">
+            <div class="flex items-end gap-1.5 rounded-2xl border border-white/10 bg-white/[0.02] p-4"
+                style="height: 180px;">
+                <div *ngFor="let b of trendBars"
+                    class="group flex flex-1 flex-col justify-end"
+                    [title]="(b.at | date:'medium') + ' — ' + b.total + ' findings (' + b.reachable + ' reachable)'">
+                    <div class="flex h-full flex-col justify-end overflow-hidden rounded-t">
+                        <div *ngFor="let seg of b.segments" [ngClass]="seg.cls" [style.height.%]="seg.pct"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Legend -->
+            <div class="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-400">
+                <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-rose-500/80"></span>Critical</span>
+                <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-orange-500/80"></span>High</span>
+                <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-amber-400/80"></span>Medium</span>
+                <span class="flex items-center gap-1.5"><span class="h-2.5 w-2.5 rounded-sm bg-sky-400/70"></span>Low</span>
+                <span class="ml-auto text-slate-500">oldest → newest · {{ trendBars.length }} {{ trendBars.length === 1 ? 'scan' : 'scans' }}</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Components (manifest-declared services) -->
+    <div class="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div>
+                <div class="text-xs uppercase tracking-widest text-slate-400">Components</div>
+                <div class="mt-1 text-sm text-slate-300">
+                    Services / apps scanned independently. Register one, then attach scans with
+                    <span class="font-mono text-slate-200">runveil scan … --component &lt;key&gt;</span>.
+                </div>
+            </div>
+            <span class="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1 text-xs text-slate-400">
+                {{ componentsLoaded ? components.length : '—' }}
+                {{ components.length === 1 ? 'component' : 'components' }}
+            </span>
+        </div>
+
+        <!-- Register form -->
+        <div class="mt-4 flex flex-wrap items-center gap-2">
+            <input
+                class="w-32 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-slate-100 outline-none focus:border-orange-500/40"
+                placeholder="key (e.g. api)" [(ngModel)]="newComponentKey" />
+            <input
+                class="min-w-[160px] flex-1 rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-slate-100 outline-none focus:border-orange-500/40"
+                placeholder="name (optional)" [(ngModel)]="newComponentName" />
+            <select
+                class="rounded-xl border border-white/10 bg-white/[0.02] px-3 py-2 text-sm text-slate-200 outline-none focus:border-orange-500/40"
+                [(ngModel)]="newComponentKind">
+                <option value="service">service</option>
+                <option value="app">app</option>
+                <option value="library">library</option>
+            </select>
+            <button type="button"
+                class="rounded-xl border border-orange-500/30 bg-orange-500/10 px-4 py-2 text-sm font-medium text-orange-200 transition hover:border-orange-500/40 hover:bg-orange-500/15 disabled:opacity-50"
+                (click)="createComponent()" [disabled]="componentBusy">
+                {{ componentBusy ? 'Adding…' : 'Register' }}
+            </button>
+        </div>
+        <div *ngIf="componentMsg" class="mt-2 text-sm text-red-200">{{ componentMsg }}</div>
+
+        <div *ngIf="componentsLoaded && components.length === 0" class="mt-4 text-sm text-slate-400">
+            No components yet — scans without a component are tracked at the project level.
+        </div>
+
+        <div *ngIf="components.length > 0" class="mt-4 overflow-x-auto">
+            <table class="w-full text-left text-sm">
+                <thead class="text-xs uppercase tracking-widest text-slate-500">
+                    <tr class="border-b border-white/10">
+                        <th class="py-2 pr-4 font-medium">Component</th>
+                        <th class="py-2 pr-4 font-medium">Kind</th>
+                        <th class="py-2 pr-4 text-right font-medium">Findings</th>
+                        <th class="py-2 pr-4 text-right font-medium">Reachable</th>
+                        <th class="py-2 pr-4 font-medium">Max severity</th>
+                        <th class="py-2 font-medium">Last scanned</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr *ngFor="let c of components" class="border-b border-white/5">
+                        <td class="py-2.5 pr-4">
+                            <a class="text-sky-300 transition hover:text-sky-200"
+                                [routerLink]="['/projects', slug, 'findings']" [queryParams]="{ component: c.key }">
+                                {{ c.name }}
+                            </a>
+                            <span class="ml-1 font-mono text-xs text-slate-500">{{ c.key }}</span>
+                        </td>
+                        <td class="py-2.5 pr-4 text-slate-300">{{ c.kind }}</td>
+                        <td class="py-2.5 pr-4 text-right text-slate-200">{{ c.finding_count }}</td>
+                        <td class="py-2.5 pr-4 text-right"
+                            [ngClass]="c.reachable_count > 0 ? 'text-orange-200' : 'text-slate-400'">
+                            {{ c.reachable_count }}
+                        </td>
+                        <td class="py-2.5 pr-4">
+                            <span class="rounded-lg border px-2 py-0.5 text-xs" [ngClass]="severityClass(c.max_severity)">
+                                {{ c.max_severity || 'none' }}
+                            </span>
+                        </td>
+                        <td class="py-2.5 text-slate-400">
+                            {{ c.last_scanned_at ? (c.last_scanned_at | date:'medium') : '—' }}
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
     <!-- Actions -->
     <div class="mt-6 rounded-2xl border border-white/10 bg-white/[0.02] p-5">
         <div class="flex flex-wrap items-center justify-between gap-4">

@@ -16,6 +16,7 @@ export class FindingsComponent {
   private api = inject(RunveilApiService);
 
   slug = signal<string>('');
+  component = signal<string>('');
   loading = signal<boolean>(true);
   error = signal<string>('');
 
@@ -51,9 +52,12 @@ export class FindingsComponent {
 
   ngOnInit() {
     this.route.paramMap.subscribe((pm) => {
-      const slug = pm.get('slug') ?? '';
-      this.slug.set(slug);
+      this.slug.set(pm.get('slug') ?? '');
       this.load();
+    });
+    this.route.queryParamMap.subscribe((qp) => {
+      this.component.set(qp.get('component') ?? '');
+      if (this.slug()) this.load();
     });
   }
 
@@ -61,7 +65,8 @@ export class FindingsComponent {
     this.loading.set(true);
     this.error.set('');
 
-    this.api.getFindings(this.slug()).subscribe({
+    const component = this.component().trim();
+    this.api.getFindings(this.slug(), component ? { component } : undefined).subscribe({
       next: (res) => {
         this.findings.set(res.findings ?? []);
         this.loading.set(false);

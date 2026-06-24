@@ -217,6 +217,7 @@ ORDER BY max_sev_rank DESC, c.key ASC
 			return
 		}
 
+		auditCtx(c, db, "component.created", cv.Key, map[string]any{"kind": cv.Kind})
 		c.JSON(http.StatusCreated, cv)
 	})
 }

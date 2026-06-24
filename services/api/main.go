@@ -47,6 +47,7 @@ func main() {
 	registerIdentity(r, db)
 	registerMembers(r, db)
 	registerSSO(r, db)
+	registerAudit(r, db)
 
 	// GET /health → { ok: true } if DB is reachable
 	r.GET("/health", func(c *gin.Context) {

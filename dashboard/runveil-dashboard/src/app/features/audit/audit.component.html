@@ -1,0 +1,44 @@
+<div class="mx-auto max-w-5xl">
+    <div class="text-xs uppercase tracking-widest text-slate-400">Organization</div>
+    <h1 class="mt-2 text-2xl font-semibold text-slate-100">Audit log</h1>
+    <p class="mt-2 text-sm text-slate-400">
+        Security-relevant actions in this organization — logins, membership, settings, and SSO changes.
+    </p>
+
+    <div *ngIf="error()" class="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/5 p-3 text-sm text-amber-200">
+        {{ error() }}
+    </div>
+
+    <div *ngIf="!error()" class="mt-6 overflow-hidden rounded-2xl border border-white/10">
+        <table class="w-full text-left text-sm">
+            <thead class="bg-white/[0.03] text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                    <th class="px-5 py-3">When</th>
+                    <th class="px-5 py-3">Actor</th>
+                    <th class="px-5 py-3">Action</th>
+                    <th class="px-5 py-3">Target</th>
+                    <th class="px-5 py-3">Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr *ngIf="loading()">
+                    <td class="px-5 py-4 text-slate-400" colspan="5">Loading…</td>
+                </tr>
+                <tr *ngIf="!loading() && entries().length === 0">
+                    <td class="px-5 py-4 text-slate-400" colspan="5">No audit events yet.</td>
+                </tr>
+                <tr *ngFor="let e of entries()" class="border-t border-white/5">
+                    <td class="whitespace-nowrap px-5 py-3 text-slate-400">{{ e.at | date:'MMM d, HH:mm:ss' }}</td>
+                    <td class="px-5 py-3 text-slate-200">{{ e.actor }}</td>
+                    <td class="px-5 py-3">
+                        <span class="rounded-lg border px-2 py-0.5 font-mono text-xs" [ngClass]="actionClass(e.action)">
+                            {{ e.action }}
+                        </span>
+                    </td>
+                    <td class="px-5 py-3 font-mono text-xs text-slate-400">{{ e.target || '—' }}</td>
+                    <td class="px-5 py-3 text-xs text-slate-500">{{ metaText(e.metadata) }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</div>

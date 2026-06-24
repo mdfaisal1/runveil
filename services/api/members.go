@@ -145,6 +145,7 @@ func addMember(c *gin.Context, db *sql.DB) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to add member"})
 			return
 		}
+		auditCtx(c, db, "member.added", req.Email, map[string]any{"role": req.Role})
 		c.JSON(http.StatusOK, gin.H{"added": true, "email": req.Email, "role": req.Role})
 		return
 	}
@@ -175,6 +176,7 @@ func addMember(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create invite", "details": err.Error()})
 		return
 	}
+	auditCtx(c, db, "member.invited", req.Email, map[string]any{"role": req.Role})
 	// The token is returned once so the admin can share an invite link.
 	c.JSON(http.StatusOK, gin.H{"invited": true, "email": req.Email, "role": req.Role, "invite_token": token})
 }
@@ -197,13 +199,14 @@ func changeRole(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "role must be owner, admin, member, or viewer"})
 		return
 	}
+	oldRole := currentRole(ctx, db, orgID, targetID)
 	// Only an owner can grant or revoke the owner role.
-	if (req.Role == "owner" || currentRole(ctx, db, orgID, targetID) == "owner") && actorRole != "owner" {
+	if (req.Role == "owner" || oldRole == "owner") && actorRole != "owner" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "only an owner can change owner roles"})
 		return
 	}
 	// Never leave the org without an owner.
-	if currentRole(ctx, db, orgID, targetID) == "owner" && req.Role != "owner" && ownerCount(ctx, db, orgID) <= 1 {
+	if oldRole == "owner" && req.Role != "owner" && ownerCount(ctx, db, orgID) <= 1 {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "organization must have at least one owner"})
 		return
 	}
@@ -218,6 +221,7 @@ func changeRole(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusNotFound, gin.H{"error": "member not found"})
 		return
 	}
+	auditCtx(c, db, "member.role_changed", targetID, map[string]any{"from": oldRole, "to": req.Role})
 	c.JSON(http.StatusOK, gin.H{"user_id": targetID, "role": req.Role})
 }
 
@@ -246,6 +250,7 @@ func removeMember(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove member"})
 		return
 	}
+	auditCtx(c, db, "member.removed", targetID, map[string]any{"role": target})
 	c.JSON(http.StatusOK, gin.H{"ok": true})
 }
 
@@ -269,6 +274,8 @@ func acceptInvite(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid or expired invite"})
 		return
 	}
+	_, actorLabel := ctxActor(c, db)
+	recordAudit(ctx, db, orgID, userID, actorLabel, "member.invite_accepted", "", map[string]any{"role": role}, c.ClientIP())
 	c.JSON(http.StatusOK, gin.H{"org_id": orgID, "role": role})
 }
 

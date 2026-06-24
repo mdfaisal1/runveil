@@ -127,6 +127,7 @@ func putOIDCConfig(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to save SSO config"})
 		return
 	}
+	auditCtx(c, db, "sso.configured", req.Domain, map[string]any{"issuer": req.Issuer, "default_role": strings.ToLower(req.DefaultRole)})
 	c.JSON(http.StatusOK, gin.H{"ok": true, "domain": req.Domain})
 }
 
@@ -314,6 +315,8 @@ func oidcCallback(c *gin.Context, db *sql.DB) {
 	}
 
 	setSessionCookie(c, token, int(sessionTTL.Seconds()))
+	recordAudit(ctx, db, prov.OrgID, userID, strings.ToLower(strings.TrimSpace(claims.Email)),
+		"auth.sso_login", prov.Domain, nil, c.ClientIP())
 	c.Redirect(http.StatusFound, oidcSuccessURL())
 }
 

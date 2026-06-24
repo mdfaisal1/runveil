@@ -148,6 +148,7 @@ func registerProjects(r *gin.Engine, db *sql.DB) {
 		if repo.Valid {
 			created.RepoURL = &repo.String
 		}
+		auditCtx(c, db, "project.created", created.Slug, nil)
 		c.JSON(http.StatusCreated, created)
 	})
 }

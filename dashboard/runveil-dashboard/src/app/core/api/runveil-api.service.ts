@@ -145,6 +145,15 @@ export type MembersResponse = {
     pending_invites: PendingInvite[];
 };
 
+export type AuditEntry = {
+    actor: string;
+    action: string;
+    target?: string;
+    metadata?: Record<string, any>;
+    ip?: string;
+    at: string;
+};
+
 @Injectable({ providedIn: 'root' })
 export class RunveilApiService {
     private http = inject(HttpClient);
@@ -220,6 +229,11 @@ export class RunveilApiService {
 
     removeMember(userId: string): Observable<any> {
         return this.http.delete(`/v1/org/members/${userId}`);
+    }
+
+    // ---- audit log ----
+    getAudit(limit = 100): Observable<{ entries: AuditEntry[] }> {
+        return this.http.get<{ entries: AuditEntry[] }>(`/v1/org/audit?limit=${limit}`);
     }
 
     // ---- org SSO (OIDC) ----

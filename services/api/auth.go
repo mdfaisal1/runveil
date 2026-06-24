@@ -40,16 +40,17 @@ func requireAPIKey(db *sql.DB) gin.HandlerFunc {
 		hash := infra.HashAPIKey(token)
 
 		var (
-			id    string
-			scope string
-			orgID sql.NullString
+			id     string
+			scope  string
+			prefix string
+			orgID  sql.NullString
 		)
 		err := db.QueryRowContext(c.Request.Context(), `
-			SELECT id, scope, org_id
+			SELECT id, scope, key_prefix, org_id
 			FROM api_keys
 			WHERE key_hash = $1
 			  AND revoked_at IS NULL
-		`, hash).Scan(&id, &scope, &orgID)
+		`, hash).Scan(&id, &scope, &prefix, &orgID)
 		if err != nil {
 			if errors.Is(err, sql.ErrNoRows) {
 				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{
@@ -69,6 +70,7 @@ func requireAPIKey(db *sql.DB) gin.HandlerFunc {
 
 		c.Set(ctxAPIKeyID, id)
 		c.Set(ctxAPIKeyScope, scope)
+		c.Set(ctxAPIKeyPrefix, prefix)
 		if orgID.Valid {
 			c.Set(ctxOrgID, orgID.String)
 		}

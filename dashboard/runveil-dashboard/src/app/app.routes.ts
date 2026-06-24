@@ -24,6 +24,12 @@ export const routes: Routes = [
                     import('./features/members/members.component').then((m) => m.MembersComponent),
             },
 
+            {
+                path: 'audit',
+                loadComponent: () =>
+                    import('./features/audit/audit.component').then((m) => m.AuditComponent),
+            },
+
             // ✅ Findings page (wired to /v1/projects/:slug/findings via RunveilApiService)
             {
                 path: 'projects/:slug/findings',

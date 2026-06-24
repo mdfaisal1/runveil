@@ -77,6 +77,7 @@ type IngestResponse struct {
 	Packages        int    `json:"packages"`
 	Vulnerabilities int    `json:"vulnerabilities"`
 	Findings        int    `json:"findings"`
+	ProjectCreated  bool   `json:"project_created,omitempty"`
 }
 
 // Used to detect an alternate payload shape: { "report": <json> }
@@ -191,6 +192,9 @@ func registerIngest(r *gin.Engine, db *sql.DB) {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 			return
 		}
+		if resp.ProjectCreated {
+			auditCtx(c, db, "project.created", slug, map[string]any{"via": "ingest"})
+		}
 		c.JSON(http.StatusOK, resp)
 	})
 }
@@ -221,13 +225,16 @@ func ingest(ctx context.Context, db *sql.DB, slug, orgID string, req *IngestRequ
 	var (
 		projectID  string
 		projectOrg string
+		created    bool
 	)
+	// (xmax = 0) is true only when this row was freshly INSERTed in this txn,
+	// letting us tell a new project from an existing one for the audit log.
 	if err := tx.QueryRowContext(ctx, `
 		INSERT INTO projects (slug, name, org_id)
 		VALUES ($1, $1, $2)
 		ON CONFLICT (slug) DO UPDATE SET updated_at = now()
-		RETURNING id, org_id
-	`, slug, orgID).Scan(&projectID, &projectOrg); err != nil {
+		RETURNING id, org_id, (xmax = 0) AS created
+	`, slug, orgID).Scan(&projectID, &projectOrg, &created); err != nil {
 		return nil, err
 	}
 	if projectOrg != orgID {
@@ -395,6 +402,7 @@ func ingest(ctx context.Context, db *sql.DB, slug, orgID string, req *IngestRequ
 		Packages:        pkgs,
 		Vulnerabilities: vulnUpserts,
 		Findings:        findings,
+		ProjectCreated:  created,
 	}, nil
 }
 

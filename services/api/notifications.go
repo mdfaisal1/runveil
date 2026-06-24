@@ -55,6 +55,7 @@ func registerNotifications(r *gin.Engine, db *sql.DB) {
 			c.JSON(http.StatusNotFound, gin.H{"error": "project not found"})
 			return
 		}
+		auditCtx(c, db, "settings.updated", slug, map[string]any{"slack_configured": url != ""})
 		c.JSON(http.StatusOK, gin.H{"ok": true, "slack_webhook_configured": url != ""})
 	})
 

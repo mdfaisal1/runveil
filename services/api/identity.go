@@ -73,14 +73,15 @@ func resolveCaller(c *gin.Context, db *sql.DB) (*caller, error) {
 	if tok := bearerToken(c); tok != "" {
 		hash := infra.HashAPIKey(tok)
 		var (
-			id    string
-			scope string
-			orgID sql.NullString
+			id     string
+			scope  string
+			prefix string
+			orgID  sql.NullString
 		)
 		err := db.QueryRowContext(ctx, `
-			SELECT id, scope, org_id FROM api_keys
+			SELECT id, scope, key_prefix, org_id FROM api_keys
 			WHERE key_hash = $1 AND revoked_at IS NULL
-		`, hash).Scan(&id, &scope, &orgID)
+		`, hash).Scan(&id, &scope, &prefix, &orgID)
 		if err == nil {
 			cl := &caller{ViaKey: true}
 			if orgID.Valid {
@@ -89,6 +90,7 @@ func resolveCaller(c *gin.Context, db *sql.DB) (*caller, error) {
 			_, _ = db.ExecContext(ctx, `UPDATE api_keys SET last_used_at = now() WHERE id = $1`, id)
 			c.Set(ctxAPIKeyID, id)
 			c.Set(ctxAPIKeyScope, scope)
+			c.Set(ctxAPIKeyPrefix, prefix)
 			return cl, nil
 		}
 		if !errors.Is(err, sql.ErrNoRows) {
@@ -323,6 +325,8 @@ func handleSignup(c *gin.Context, db *sql.DB) {
 	}
 
 	setSessionCookie(c, token, int(sessionTTL.Seconds()))
+	recordAudit(ctx, db, orgID, userID, req.Email, "auth.signup", "",
+		map[string]any{"via_invite": strings.TrimSpace(req.Invite) != ""}, c.ClientIP())
 	c.JSON(http.StatusCreated, gin.H{"user_id": userID, "org_id": orgID, "org_slug": orgSlug})
 }
 
@@ -341,12 +345,17 @@ func handleLogin(c *gin.Context, db *sql.DB) {
 	)
 	err := db.QueryRowContext(ctx,
 		`SELECT id, password_hash FROM users WHERE lower(email) = $1`, req.Email).Scan(&userID, &pwHash)
-	if errors.Is(err, sql.ErrNoRows) || (err == nil && !infra.VerifyPassword(pwHash.String, req.Password)) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "login failed"})
 		return
 	}
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "login failed"})
+	if err != nil || !infra.VerifyPassword(pwHash.String, req.Password) {
+		// Audit failed logins only for known emails (an unknown email has no org).
+		if err == nil {
+			recordAudit(ctx, db, primaryOrgID(ctx, db, userID), userID, req.Email,
+				"auth.login_failed", "", map[string]any{"reason": "bad_password"}, c.ClientIP())
+		}
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid email or password"})
 		return
 	}
 
@@ -357,6 +366,7 @@ func handleLogin(c *gin.Context, db *sql.DB) {
 		return
 	}
 	setSessionCookie(c, token, int(sessionTTL.Seconds()))
+	recordAudit(ctx, db, orgID, userID, req.Email, "auth.login", "", nil, c.ClientIP())
 	c.JSON(http.StatusOK, gin.H{"user_id": userID, "org_id": orgID})
 }
 

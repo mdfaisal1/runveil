@@ -89,6 +89,10 @@ var scanCmd = &cobra.Command{
 	Long:  "Parses package-lock.json (v2/v3 style), queries the OSV API per dependency, and prints only vulnerable packages.",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
+		// Fall back to the config-file project when --project is omitted.
+		if flagProject == "" {
+			flagProject = infra.ConfigProject()
+		}
 		// validate format
 		if flagFormat != "json" && flagFormat != "md" {
 			fmt.Println("❌ --format must be 'json' or 'md'")

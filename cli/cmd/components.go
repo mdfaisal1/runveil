@@ -59,6 +59,9 @@ func newComponentsCreateCmd() *cobra.Command {
 		Short: "Register a component so scans can attach to it",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			project = strings.TrimSpace(project)
+			if project == "" {
+				project = infra.ConfigProject()
+			}
 			key = strings.TrimSpace(key)
 			if project == "" || key == "" {
 				return fmt.Errorf("--project and --key are required")
@@ -123,6 +126,9 @@ func newComponentsListCmd() *cobra.Command {
 		Short: "List a project's components with a rollup of their latest scan",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			project = strings.TrimSpace(project)
+			if project == "" {
+				project = infra.ConfigProject()
+			}
 			if project == "" {
 				return fmt.Errorf("--project is required")
 			}

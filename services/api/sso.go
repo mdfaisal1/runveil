@@ -110,15 +110,22 @@ func putOIDCConfig(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	// Encrypt the client secret at rest (AES-GCM; see infra.EncryptSecret).
+	encSecret, err := infra.EncryptSecret(req.ClientSecret)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to secure SSO secret"})
+		return
+	}
+
 	// One provider per org; a domain maps to one org globally.
-	_, err := db.ExecContext(ctx, `
+	_, err = db.ExecContext(ctx, `
 		INSERT INTO oidc_providers (org_id, domain, issuer, client_id, client_secret, default_role)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (org_id) DO UPDATE SET
 			domain = EXCLUDED.domain, issuer = EXCLUDED.issuer,
 			client_id = EXCLUDED.client_id, client_secret = EXCLUDED.client_secret,
 			default_role = EXCLUDED.default_role, updated_at = now()
-	`, orgID, req.Domain, req.Issuer, req.ClientID, req.ClientSecret, strings.ToLower(req.DefaultRole))
+	`, orgID, req.Domain, req.Issuer, req.ClientID, encSecret, strings.ToLower(req.DefaultRole))
 	if err != nil {
 		if isUniqueViolation(err) {
 			c.JSON(http.StatusConflict, gin.H{"error": "that email domain is already claimed by another organization"})
@@ -195,9 +202,14 @@ func oidcStart(c *gin.Context, db *sql.DB) {
 		return
 	}
 
+	secret, err := infra.DecryptSecret(prov.ClientSecret)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "SSO secret could not be read (check RUNVEIL_SECRET_KEY)"})
+		return
+	}
 	conf := oauth2.Config{
 		ClientID:     prov.ClientID,
-		ClientSecret: prov.ClientSecret,
+		ClientSecret: secret,
 		Endpoint:     oidcProvider.Endpoint(),
 		RedirectURL:  oidcRedirectURL(),
 		Scopes:       []string{oidc.ScopeOpenID, "email", "profile"},
@@ -250,9 +262,14 @@ func oidcCallback(c *gin.Context, db *sql.DB) {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "could not reach identity provider"})
 		return
 	}
+	secret, err := infra.DecryptSecret(prov.ClientSecret)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "SSO secret could not be read (check RUNVEIL_SECRET_KEY)"})
+		return
+	}
 	conf := oauth2.Config{
 		ClientID:     prov.ClientID,
-		ClientSecret: prov.ClientSecret,
+		ClientSecret: secret,
 		Endpoint:     oidcProvider.Endpoint(),
 		RedirectURL:  oidcRedirectURL(),
 		Scopes:       []string{oidc.ScopeOpenID, "email", "profile"},
